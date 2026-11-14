@@ -29,15 +29,26 @@
   button:active{background:rgba(57,246,255,.22)}
   button.need{color:#bfffd0;border-color:#46ff8c;text-shadow:0 0 8px #46ff8c;animation:pulse 1.6s ease-in-out infinite}
   @keyframes pulse{50%{box-shadow:0 0 14px rgba(70,255,140,.55)}}
-  #ebar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:none;justify-content:center;gap:8px;pointer-events:none}
-  #ebar button.sel{background:rgba(70,255,140,.22);border-color:#46ff8c;color:#d8ffe4;text-shadow:0 0 8px #46ff8c}
+  #ebar{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 8px);display:none;flex-direction:column;align-items:center;gap:7px;pointer-events:none;
+    padding:0 calc(env(safe-area-inset-right) + 8px) 0 calc(env(safe-area-inset-left) + 8px)}
+  .erow{display:flex;justify-content:center;align-items:center;gap:7px;flex-wrap:wrap;pointer-events:none}
+  #eSel{display:none;background:rgba(0,14,16,.85);border:1px solid rgba(255,224,102,.5);border-radius:14px;padding:6px 8px;pointer-events:auto;color:#ffe9a0;font-size:13px}
+  #eSel button{padding:6px 9px;font-size:13px}
+  #eSel .lbl{padding:0 4px;text-shadow:0 0 6px #ffe066;white-space:nowrap}
+  #eSel .num{min-width:22px;text-align:center;color:#fff}
+  #eSel .sep{width:4px}
+  #eSel button.del{color:#ffb0b0;border-color:rgba(255,120,120,.6);text-shadow:0 0 6px #ff6a6a}
+  #ePalC button{padding:6px 8px;font-size:13px}
+  #eCount{font-size:11px;opacity:.75}
+  #ebar button.sel,#eSel button.sel{background:rgba(70,255,140,.22);border-color:#46ff8c;color:#d8ffe4;text-shadow:0 0 8px #46ff8c}
   #eTrash{min-width:56px;font-size:18px;padding:6px 10px}
   #eTrash.hot{background:rgba(255,70,70,.35);border-color:#ff6a6a;box-shadow:0 0 16px rgba(255,90,90,.6)}
   #eDone{color:#bfffd0;border-color:#46ff8c}
+  body.editing #toast{top:46%}
   #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:12px;padding:6px 10px;min-width:0;display:none}
   #panel{position:fixed;left:calc(env(safe-area-inset-left) + 14px);right:calc(env(safe-area-inset-right) + 14px);
     top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
-    color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;text-shadow:0 0 5px rgba(57,246,255,.6);white-space:pre;overflow:hidden}
+    color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;text-shadow:0 0 5px rgba(57,246,255,.6);white-space:pre;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);box-sizing:border-box}
   #panel b{color:#46ff8c;font-weight:600}
   #panel .dim{color:#4f9aa0}
   #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);color:#bfffd0;
@@ -56,14 +67,22 @@
   <button id="bDecor">⌂ 佈置</button>
 </div>
 <div id="ebar" class="ui">
-  <button id="eWeed">} 水草</button>
-  <button id="eRock">(_) 石頭</button>
-  <button id="eTrash">🗑</button>
-  <button id="eDone">完成</button>
+  <div class="erow">
+    <button id="eTabD">⌂ 裝飾</button>
+    <button id="eTabC">∽ 生物 <span id="eCount"></span></button>
+    <button id="eDone">完成</button>
+  </div>
+  <div id="ePalD" class="erow">
+    <button id="eWeed">} 水草</button>
+    <button id="eRock">(_) 石頭</button>
+    <button id="eTrash">🗑</button>
+  </div>
+  <div id="ePalC" class="erow wrap"></div>
+  <div id="eSel" class="erow"></div>
 </div>
 <button id="bTilt" class="ui">📱 啟用傾斜</button>
 <div id="panel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
