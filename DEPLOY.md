@@ -29,3 +29,9 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - New creature 水母 (jelly): pulse-up / drift-down, translucent, 3 stages, pixel sprite.
 - New plants in 裝飾: 海帶 / 珊瑚 / 草叢 / 海葵 (select, resize, length, delete, persist, pixel mode).
 - Tests: `python3 test_v5.py [url]` (no-glow + jelly + plants), plus test_v3 / test_tilt / test_ios / test_species (→ shots/v5-species.png).
+
+## v6 (2026-11-14)
+- 自動餵食 toggle at the top of the 狀態 panel (`S.autoFeed`, default off, persisted).
+- Live: when average 飽足 < 45, drops pellets (≈0.7 × creature count, 4–12), 20-min cooldown, toast 「自動餵食」.
+- Offline / background catch-up: with auto-feed on, each 10-min care step tops fish up (+42) when average 飽足 < 45; dirt unchanged.
+- Test: `python3 test_v6.py [url]`.

@@ -7,6 +7,8 @@ const low = document.createElement('canvas'), lctx = low.getContext('2d');
 const KEY = 'fishtank.v1';
 const PX = 4;                       // CSS px per pixel in pixel-art mode
 const INTRO = 2.8;                  // seconds of "pour fish in"
+const AUTO_AT = 45, AUTO_COOLDOWN = 20 * 60 * 1000;   // v6 auto-feed: fire when avg 飽足 < 45, at most every 20 min
+let autoFeeds = 0, autoChk = 0;                                         // offline auto-feeds counted for the welcome-back toast
 const HUNGER_PER_H = 12;            // full -> empty in ~8h
 const DIRT_HOURS = 36;              // clean -> filthy in ~36h
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -134,6 +136,7 @@ function load() {
     s.starter3 = true; const add = starterList();
     if (s.fish.length + add.length <= MAX_CREATURES) { s.fish = s.fish.concat(add); s.newFriends = true; }
   }
+  if (typeof s.autoFeed !== 'boolean') s.autoFeed = false;                   // v6: auto-feed setting, default off
   s.v = 3;
   return s;
 }
@@ -145,12 +148,16 @@ function save() {
 }
 
 // ---------- care simulation (also used for offline time) ----------
-function care(sec, list) {
+function care(sec, list, away) {
   let left = sec;
   while (left > 0) {
     const step = Math.min(left, 600); left -= step;
     const h = step / 3600;
     S.dirt = clamp(S.dirt + h / DIRT_HOURS, 0, 1);
+    if (away && S.autoFeed && list.length && list.reduce((a, f) => a + f.hunger, 0) / list.length < AUTO_AT) {
+      for (const f of list) { f.hunger = clamp(f.hunger + 42, 0, 100); f.mood = clamp(f.mood + 4, 0, 100); }   // fed while away
+      autoFeeds++;
+    }
     for (const f of list) {
       f.hunger = clamp(f.hunger - HUNGER_PER_H * h, 0, 100);
       const target = clamp(f.hunger * 0.55 + (1 - S.dirt) * 45 - (f.sick ? 20 : 0), 0, 100);
@@ -533,6 +540,16 @@ function dropFood(x, n) {
     food.push({ x: clamp(x + rnd(-14, 14), 10, W - 10), y: surfaceY + rnd(-6, 4), vy: rnd(16, 26), ph: rnd(0, 6), age: 0, settled: false });
   }
 }
+function autoFeedTick() {
+  if (!S.autoFeed || edit || !fish.length || intro < 3) return;
+  const avg = fish.reduce((a, f) => a + f.hunger, 0) / fish.length;
+  if (avg >= AUTO_AT || Date.now() - (S.autoT || 0) < AUTO_COOLDOWN || food.length > 4) return;
+  S.autoT = Date.now();
+  const n = clamp(Math.ceil(fish.length * 0.7), 4, 12);
+  for (let i = 0; i < n; i++) dropFood(rnd(W * 0.12, W * 0.88), 1);
+  toast('自動餵食', 1.6); save();
+}
+function setAutoFeed(on) { S.autoFeed = on; if (on) S.autoT = 0; save(); renderPanel(); toast(on ? '自動餵食：開（魚餓了會自己撒飼料）' : '自動餵食：關', 1.8); }
 function feedButton() { for (let i = 0; i < 5; i++) dropFood(rnd(W * 0.15, W * 0.85), 1); toast('撒了一把飼料'); }
 function changeWater() {
   if (changing) return;
@@ -622,7 +639,10 @@ const btn = (id, fn) => $(id).addEventListener('click', e => { e.stopPropagation
 btn('bFeed', feedButton);
 btn('bWater', () => { changeWater(); });
 btn('bInfo', () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; renderPanel(); });
-$('panel').addEventListener('click', () => { $('panel').style.display = 'none'; });
+$('panel').addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('#pAuto')) { e.stopPropagation(); setAutoFeed(!S.autoFeed); return; }
+  $('panel').style.display = 'none';
+});
 btn('bStyle', () => { S.style = S.style === 'ascii' ? 'pixel' : 'ascii'; styleLabel(); save(); });
 btn('bTilt', tiltButton);
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
@@ -834,7 +854,7 @@ function renderPanel() {
     rows.push({ sp: 'minnow', name: '群魚 ×' + g.length, hunger: avg('hunger'), mood: avg('mood'), growth: avg('growth'), sick: g.some(o => o.sick) });
   }
   const lines = rows.map(f => `<b>${f.name}</b> <span class="dim">${SPECIES[f.sp].label}</span>\n 飽足 ${bar(f.hunger)}  心情 ${bar(f.mood)}\n 成長 ${bar((f.growth || 0) * 100)}  ${STAGE_NAMES[stageOf(f.growth || 0)]}　狀態 ${moodWord(f)}`);
-  $('panel').innerHTML = lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
+  $('panel').innerHTML = `<button id="pAuto" class="${S.autoFeed ? 'on' : ''}">∴ 自動餵食：${S.autoFeed ? '開' : '關'}</button>\n` + lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
     `\n<span class="dim">點玻璃：魚會嚇跑　長按：餵食　點此關閉</span>`;
 }
 
@@ -1179,7 +1199,8 @@ function frame(now) {
   const dt = Math.min(0.05, Math.max(0, rawDt));
   // wall-clock care (handles background/suspend too)
   const wall = Date.now(), gap = (wall - lastWall) / 1000; lastWall = wall;
-  if (gap > 0) care(Math.min(gap, 86400 * 30), fish);
+  if (gap > 0) care(Math.min(gap, 86400 * 30), fish, gap > 60);
+  if (wall - autoChk > 1500) { autoChk = wall; autoFeedTick(); }
   if (gap > 3600) offlineToast(gap);
   update(dt);
   render();
@@ -1192,7 +1213,7 @@ function frame(now) {
 function offlineToast(sec) {
   const h = sec / 3600;
   const hungry = fish.some(f => f.hunger < 30 || f.sick);
-  toast(`離開了 ${h < 24 ? Math.round(h) + ' 小時' : Math.round(h / 24) + ' 天'}${hungry ? '，魚餓了，快餵牠們' : S.dirt > 0.5 ? '，水有點髒了' : ''}`, 4);
+  toast(`離開了 ${h < 24 ? Math.round(h) + ' 小時' : Math.round(h / 24) + ' 天'}${autoFeeds ? `，自動餵食了 ${autoFeeds} 次` : ''}${hungry ? '，魚餓了，快餵牠們' : S.dirt > 0.5 ? '，水有點髒了' : ''}`, 4); autoFeeds = 0;
 }
 
 // ---------- boot ----------
@@ -1200,7 +1221,7 @@ function boot() {
   resize();
   const away = (Date.now() - (S.t || Date.now())) / 1000;
   const list = S.fish.map(p => ({ ...p }));
-  if (away > 0) care(Math.min(away, 86400 * 30), list);
+  if (away > 0) care(Math.min(away, 86400 * 30), list, true);
   fish = list.map(makeFish);
   styleLabel();
   if (typeof S.tiltOn !== 'boolean') S.tiltOn = needsPerm ? !!S.motion : true;   // migrate: v1-v3 had no off switch
@@ -1226,6 +1247,6 @@ window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();
