@@ -8,7 +8,11 @@ const KEY = 'fishtank.v1';
 const PX = 4;                       // CSS px per pixel in pixel-art mode
 const INTRO = 2.8;                  // seconds of "pour fish in"
 const AUTO_AT = 45, AUTO_COOLDOWN = 20 * 60 * 1000;   // v6 auto-feed: fire when avg 飽足 < 45, at most every 20 min
-let autoFeeds = 0, autoChk = 0;                                         // offline auto-feeds counted for the welcome-back toast
+let autoFeeds = 0, autoChk = 0;
+// v9 breeding: healthy adult pairs of the same species occasionally have 1–3 babies
+const BREED_GAP_H = [3, 6], BREED_COOL_H = 12, OFFLINE_BABY_CAP = 3;
+let hearts = [], offlineBabies = 0;
+const canBreed = (f, now) => stageOf(f.growth || 0) === 2 && !f.sick && f.hunger >= 50 && f.mood >= 50 && (f.bt || 0) <= now;                                         // offline auto-feeds counted for the welcome-back toast
 const HUNGER_PER_H = 12;            // full -> empty in ~8h
 const DIRT_HOURS = 36;              // clean -> filthy in ~36h
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -44,7 +48,7 @@ SPECIES.jelly = { label: '水母', kind: 'jelly', strs: [[' _ ', '(_)', ' ) '], 
 const kindOf = sp => SPECIES[sp].kind || 'swim';
 const isBottom = f => { const k = kindOf(f.sp); return k === 'crab' || k === 'shrimp'; };
 const strLen = str => Array.isArray(str) ? Math.max(...str.map(l => l.length)) : str.length;
-const MAX_CREATURES = 25, SCHOOL_SIZE = 6;
+const MAX_CREATURES = 100, SCHOOL_SIZE = 6;   // v9: cap raised 25 -> 100
 const DEFAULT_NAME = { jelly: '水水', clown: '小丑', neon: '霓虹', puffer: '河豚', shrimp: '小蝦', crab: '阿蟹', minnow: '群魚', turtle: '龜龜', angel: '小仙', betta: '阿鬥' };
 const STARTERS = [['shrimp', '小蝦'], ['crab', '阿蟹'], ['turtle', '龜龜'], ['angel', '小仙'], ['betta', '阿鬥']];
 function starterList() {
@@ -137,22 +141,31 @@ function load() {
     if (s.fish.length + add.length <= MAX_CREATURES) { s.fish = s.fish.concat(add); s.newFriends = true; }
   }
   if (typeof s.autoFeed !== 'boolean') s.autoFeed = false;
-  if (typeof s.sound !== 'boolean') s.sound = true;                            // v7: ambient sound, default on                   // v6: auto-feed setting, default off
+  if (typeof s.sound !== 'boolean') s.sound = true;
+  s.fish.forEach(f => { if (f.sp === 'minnow') f.grp = 1; });
+  if (typeof s.breed !== 'boolean') s.breed = true;                            // v9: breeding toggle, default on
+  if (typeof s.breedT !== 'number') s.breedT = Date.now() + 3600e3;             // first litter no sooner than 1 h after update                 // v9: merge separate 群魚 groups into one school                            // v7: ambient sound, default on                   // v6: auto-feed setting, default off
   s.v = 3;
   return s;
 }
 function save() {
   S.t = Date.now();
-  S.fish = fish.map(f => { const o = { sp: f.sp, name: f.name, hunger: f.hunger, mood: f.mood, sick: f.sick, growth: f.growth }; if (f.grp) o.grp = f.grp; return o; });
+  S.fish = fish.map(f => { const o = { sp: f.sp, name: f.name, hunger: f.hunger, mood: f.mood, sick: f.sick, growth: f.growth }; if (f.grp) o.grp = f.grp; if (f.bt) o.bt = f.bt; return o; });
   if (decor) S.decor = decor.map(d => ({ type: d.type, fx: +d.fx.toFixed(4), n: d.n, v: d.v, back: !!d.back, s: +(d.s || 1).toFixed(3) }));
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
 }
 
 // ---------- care simulation (also used for offline time) ----------
 function care(sec, list, away) {
-  let left = sec;
+  let left = sec, born = [];
+  const t0 = Date.now() - sec * 1000;
   while (left > 0) {
     const step = Math.min(left, 600); left -= step;
+    const tnow = t0 + (sec - left) * 1000;
+    if (away && S.breed && offlineBabies < OFFLINE_BABY_CAP && list.length + born.length < MAX_CREATURES && tnow >= (S.breedT || 0)) {
+      const pair = findPair(list, tnow);
+      if (pair) { const kids = litter(pair[0], pair[1], list.concat(born), tnow).slice(0, OFFLINE_BABY_CAP - offlineBabies); offlineBabies += kids.length; born = born.concat(kids); }
+    }
     const h = step / 3600;
     S.dirt = clamp(S.dirt + h / DIRT_HOURS, 0, 1);
     if (away && S.autoFeed && list.length && list.reduce((a, f) => a + f.hunger, 0) / list.length < AUTO_AT) {
@@ -169,7 +182,9 @@ function care(sec, list, away) {
       // growth: only while fed (>=30) and healthy; faster when full and happy
       if (!f.sick && f.hunger >= 30) f.growth = clamp((f.growth || 0) + h / GROW_HOURS * (0.4 + 0.6 * f.mood / 100) * (0.5 + 0.5 * f.hunger / 100), 0, 1);
     }
+    for (const b of born) b.hunger = clamp(b.hunger - HUNGER_PER_H * h * 0.5, 40, 100);   // newborns stay fed enough while away
   }
+  return born;
 }
 
 // ---------- layout ----------
@@ -296,7 +311,7 @@ function drawPlantsPx() {
 // ---------- fish ----------
 function makeFish(p, i, pour) {
   const fromLeft = i % 2 === 0, fromTop = pour || i === 4 || isBottom(p);
-  const f = { sp: p.sp, name: p.name, hunger: p.hunger, mood: p.mood, sick: p.sick, growth: p.growth || 0, lastStage: stageOf(p.growth || 0),
+  const f = { sp: p.sp, name: p.name, hunger: p.hunger, mood: p.mood, sick: p.sick, growth: p.growth || 0, lastStage: stageOf(p.growth || 0), bt: p.bt || 0,
     x: fromTop ? rnd(W * 0.3, W * 0.7) : fromLeft ? -60 - i * 30 : W + 60 + i * 30,
     y: fromTop ? surfaceY - 30 - (pour ? rnd(0, 40) : rnd(0, 20)) : rnd(H * 0.2, H * 0.6), grp: p.grp || 0, mode: 'walk', surfT: rnd(20, 60), surfacing: 0,
     vx: 0, vy: 0, face: fromLeft ? 1 : -1, flip: fromLeft ? 1 : -1, ang: 0, ph: rnd(0, 6), startle: 0, fx: 0, fy: 0,
@@ -507,7 +522,7 @@ function afterMove(f, dt) {
   }
   // breathe bubbles
   f.bubT -= dt;
-  if (f.bubT <= 0) { f.bubT = rnd(2, 6) * (isBottom(f) ? 3 : 1) * (f.sp === 'minnow' ? 2.5 : 1) / (f.startle > 0 ? 3 : 1); if (bubbles.length < 60) bubbles.push(newBubble(mouthX(f), f.y - fs * 0.2, false)); }
+  if (f.bubT <= 0) { f.bubT = rnd(2, 6) * (isBottom(f) ? 3 : 1) * (f.sp === 'minnow' ? 2.5 : 1) * Math.max(1, fish.length / 25) / (f.startle > 0 ? 3 : 1); if (bubbles.length < 60) bubbles.push(newBubble(mouthX(f), f.y - fs * 0.2, false)); }
 }
 function newBubble(x, y, big, vy) { return { x, y, vy: vy || rnd(22, 38), ph: rnd(0, 6), age: 0, big, grow: Math.random() < 0.5 ? rnd(1.5, 3.5) : 1e9 }; }
 const isBig = b => b.big || b.age > b.grow;
@@ -613,34 +628,19 @@ function askMotion(fromButton) {
 }
 
 // ---------- sound (v7): Web Audio only, no files ----------
-const snd = { ctx: null, master: null, water: null, flow: null, trickle: null, dropT: 0, nextBloop: null, lastBloop: 0 };
+const snd = { ctx: null, master: null, water: null, trickle: null, dropT: 0, nextBloop: null, lastBloop: 0 };
 const SND_VOL = 0.55;
-function noiseBuffer(ac, sec) {          // white noise loop (v8: bandpassed for a filter-outflow hiss)
-  const n = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-  return buf;
-}
-// v8 water: steady (unmodulated) bandpassed hiss + a dense babble of tiny droplets 800–3000 Hz every 20–120 ms
-function waterBed(ac, dest) {
-  const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 3); src.loop = true;
-  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.8;
-  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
-  const g = ac.createGain(); g.gain.value = 0.11;
-  src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(dest); src.start();
-  return { src, bp, g };
-}
+// v9 water: no noise bed at all — only sparse, quiet droplets every 150–500 ms
 function droplet(ac, dest, t0, rand = Math.random) {
   const r = (a, b) => a + rand() * (b - a);
   const f0 = 800 * Math.pow(3000 / 800, rand() * rand() * 0.6 + rand() * 0.4), dur = r(0.012, 0.045);
-  const amp = 0.014 + Math.pow(rand(), 2.4) * 0.11;               // mostly tiny, a few brighter ones
+  const amp = 0.008 + Math.pow(rand(), 2.4) * 0.05;               // mostly tiny, a few brighter ones
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = 'sine'; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f0 * r(1.25, 1.9), t0 + dur);
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(amp, t0 + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.01);
 }
-function nextDropGap(rand = Math.random) {                         // irregular: short bursts + small pauses
-  return rand() < 0.65 ? 0.02 + rand() * 0.04 : 0.05 + rand() * 0.07;
-}
+function nextDropGap(rand = Math.random) { return 0.15 + Math.pow(rand(), 1.3) * 0.35; }   // irregular, sparse
 function trickleTick() {
   const ac = snd.ctx; if (!ac || ac.state !== 'running' || !S.sound || document.hidden) return;
   if (snd.dropT < ac.currentTime + 0.01) snd.dropT = ac.currentTime + 0.02;
@@ -652,7 +652,7 @@ function initAudio() {
   const ac = new AC(); snd.ctx = ac;
   snd.master = ac.createGain(); snd.master.gain.value = 0; snd.master.connect(ac.destination);
   snd.water = ac.createGain(); snd.water.gain.value = 1; snd.water.connect(snd.master);
-  snd.flow = waterBed(ac, snd.water); snd.dropT = 0;
+  snd.dropT = 0;
   snd.trickle = setInterval(trickleTick, 70);
   scheduleBloop();
   return ac;
@@ -699,7 +699,6 @@ function renderSfxSample(kind, sec = 2.5) {
 function renderWaterSample(sec = 10) {
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ac = new OAC(1, Math.floor(44100 * sec), 44100);
   const m = ac.createGain(); m.gain.value = SND_VOL; m.connect(ac.destination);
-  waterBed(ac, m);
   for (let t = 0.02; t < sec; t += nextDropGap()) droplet(ac, m, t);
   return ac.startRendering().then(b => Array.from(b.getChannelData(0)));
 }
@@ -767,8 +766,16 @@ document.addEventListener('touchmove', e => { if (!(e.target.closest && e.target
 const btn = (id, fn) => $(id).addEventListener('click', e => { e.stopPropagation(); fn(); });
 btn('bFeed', feedButton);
 btn('bWater', () => { changeWater(); });
-btn('bInfo', () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; renderPanel(); });
+// v9: tapping 狀態 again closes it (menu stays open); the panel sits below the dropdown so 狀態 and ≡ stay tappable
+function placePanel() {
+  const p = $('panel'), bar = $('bar');
+  const r = document.body.classList.contains('menu') && bar.getBoundingClientRect();
+  p.style.top = r && r.height ? Math.round(r.bottom + 8) + 'px' : '';
+  p.style.maxHeight = r && r.height ? Math.max(160, innerHeight - r.bottom - 24) + 'px' : '';
+}
+btn('bInfo', () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; placePanel(); renderPanel(); });
 $('panel').addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('#pBreed')) { e.stopPropagation(); S.breed = !S.breed; save(); renderPanel(); toast(S.breed ? '繁殖：開（健康的成魚偶爾會生小寶寶）' : '繁殖：關', 1.8); return; }
   if (e.target.closest && e.target.closest('#pSound')) { e.stopPropagation(); setSound(!S.sound); return; }
   if (e.target.closest && e.target.closest('#pAuto')) { e.stopPropagation(); setAutoFeed(!S.autoFeed); return; }
   $('panel').style.display = 'none';
@@ -777,13 +784,17 @@ btn('bStyle', () => { S.style = S.style === 'ascii' ? 'pixel' : 'ascii'; styleLa
 btn('bTilt', tiltButton);
 // v8: buttons hidden by default; ≡ shows/hides the bottom bar + tilt toggle; auto-collapse after 8 s idle
 let menuT = 0;
-function setMenu(open) { document.body.classList.toggle('menu', open); menuT = Date.now(); }
+function setMenu(open) { document.body.classList.toggle('menu', open); menuT = Date.now(); if (typeof placePanel === 'function') placePanel(); }
 function menuIdleCheck() {
   if (window.__menuPin || !document.body.classList.contains('menu') || edit || $('panel').style.display === 'block') { menuT = Date.now(); return; }
   if (Date.now() - menuT > 8000) setMenu(false);
 }
 document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
-btn('bMenu', () => setMenu(!document.body.classList.contains('menu')));
+btn('bMenu', () => {                       // ≡ closes the dropdown and the 狀態 panel together
+  const open = document.body.classList.contains('menu');
+  if (open) $('panel').style.display = 'none';
+  setMenu(!open);
+});
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
 
 // ---------- edit mode: 裝飾 (decor) + 生物 (creatures) ----------
@@ -817,16 +828,61 @@ function addDecor(x) {
   decor.push(d); syncDecor(); save();
 }
 function creatureCount() { return fish.length; }
-function uniqueName(sp) {
+function uniqueName(sp, list = fish) {
   const base = DEFAULT_NAME[sp] || SPECIES[sp].label;
   if (sp === 'minnow') return base;
-  if (!fish.some(f => f.name === base)) return base;
-  for (let i = 2; ; i++) if (!fish.some(f => f.name === base + i)) return base + i;
+  if (!list.some(f => f.name === base)) return base;
+  for (let i = 2; ; i++) if (!list.some(f => f.name === base + i)) return base + i;
+}
+// find the closest eligible same-species pair
+function findPair(list, now) {
+  let best = null, bd = Infinity;
+  const ok = list.filter(f => canBreed(f, now));
+  for (let i = 0; i < ok.length; i++) for (let j = i + 1; j < ok.length; j++) {
+    const a = ok[i], b = ok[j]; if (a.sp !== b.sp) continue;
+    const d = a.x != null ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    if (d < bd) { bd = d; best = [a, b]; }
+  }
+  return best;
+}
+function litter(a, b, list, now) {           // returns plain baby records; marks parents' cooldown
+  const n = Math.min(1 + Math.floor(Math.random() * 3), MAX_CREATURES - list.length), out = [];
+  for (let i = 0; i < n; i++) out.push({ sp: a.sp, name: uniqueName(a.sp, list.concat(out)), hunger: 85, mood: 80, sick: false, growth: 0.04, grp: a.sp === 'minnow' ? 1 : 0, bt: now + BREED_COOL_H * 3600e3 });
+  a.bt = b.bt = now + BREED_COOL_H * 3600e3;
+  S.breedT = now + rnd(BREED_GAP_H[0], BREED_GAP_H[1]) * 3600e3;
+  return out;
+}
+// live: steer the pair together, then hearts + babies when they meet
+function breedTick() {
+  if (!S.breed || edit || fish.length >= MAX_CREATURES) { for (const f of fish) f.mate = null; return; }
+  const now = Date.now();
+  if (now < S.breedT) return;
+  let pair = fish.find(f => f.mate && fish.includes(f.mate) && canBreed(f, now) && canBreed(f.mate, now));
+  pair = pair ? [pair, pair.mate] : findPair(fish, now);
+  if (!pair) return;
+  const [a, b] = pair; a.mate = b; b.mate = a;
+  a.mateT = a.mateT || now;
+  if (now - a.mateT > 90e3) { a.mate = b.mate = null; a.mateT = 0; a.bt = b.bt = now + 3600e3; return; }   // never met: try later
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  for (const f of pair) { f.tx = mx; f.ty = isBottom(f) ? f.ty : my; f.pause = 0; f.wt = 3; }
+  if (Math.hypot(a.x - b.x, a.y - b.y) < fs * 3.5) {
+    a.mate = b.mate = null; a.mateT = 0;
+    const kids = litter(a, b, fish, now);
+    kids.forEach((k, i) => { const f = makeFish(k, fish.length, false); f.enter = false; f.x = mx + rnd(-20, 20); f.y = clamp(my + rnd(-12, 12), surfaceY + 20, sandY - 10); f.vx = rnd(-20, 20); f.vy = rnd(-10, 10); fish.push(f); });
+    for (let k = 0; k < 6; k++) hearts.push({ x: mx + rnd(-14, 14), y: my - rnd(0, 10), t: -k * 0.12 });
+    save(); toast(`♥ ${a.name} 和 ${b.name} 生了 ${kids.length} 隻小寶寶`, 2.6);
+  }
+}
+function drawHearts() {
+  if (!hearts.length) return;
+  ctx.save(); ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${fs * 0.9}px ${MONO}`; ctx.fillStyle = '#ff7fb0';
+  for (const h of hearts) if (h.t > 0) { ctx.globalAlpha = Math.max(0, 1 - h.t / 1.8); ctx.fillText('♥', h.x + Math.sin(h.t * 4 + h.x) * 4, h.y - h.t * 22); }
+  ctx.restore();
 }
 function addCreature(sp) {
   const need = sp === 'minnow' ? SCHOOL_SIZE : 1, room = MAX_CREATURES - creatureCount();
   if (room <= 0 || (sp === 'minnow' && room < 3)) { toast(`魚缸滿了（最多 ${MAX_CREATURES} 隻），先移除一些吧`); return null; }
-  const n = Math.min(need, room), grp = sp === 'minnow' ? Math.max(0, ...fish.map(f => f.grp || 0)) + 1 : 0;
+  const n = Math.min(need, room), grp = sp === 'minnow' ? 1 : 0;   // v9: every 群魚 joins the one shared school
   const x0 = rnd(W * 0.2, W * 0.8), added = [];
   for (let i = 0; i < n; i++) {
     const f = makeFish({ sp, name: uniqueName(sp), hunger: 85, mood: 75, sick: false, growth: 0.05, grp }, fish.length, true);
@@ -836,7 +892,7 @@ function addCreature(sp) {
   }
   for (let k = 0; k < 14; k++) bubbles.push(newBubble(x0 + rnd(-40, 40), surfaceY + rnd(5, 60), Math.random() < 0.5, rnd(40, 90)));   // pour-in splash
   ripples.push({ x: x0, y: surfaceY + 4, t: 0.3, quiet: true });
-  save(); toast(`倒入了${SPECIES[sp].label}${n > 1 ? ' ×' + n : ''}`, 1.6); renderSel();
+  save(); toast(`倒入了${added[0].name}${n > 1 ? ' ×' + n : ''}`, 1.6); renderSel();
   return added;
 }
 function removeCreature(f) {
@@ -847,6 +903,19 @@ function removeCreature(f) {
   save(); toast(`${gone.length > 1 ? '群魚 ×' + gone.length : f.name}回到大海了`, 1.6); renderSel();
 }
 function setDecorSize(d, v) { d.s = clamp(v, 0.5, 2.2); save(); renderSel(); }
+// v9: mouse/trackpad resize — wheel over the canvas scales the selected item; a corner handle can be dragged
+const HANDLE = 14;
+function handlePos(d) { const b = rockBox(d); return { x: b.x1, y: b.y0 }; }
+function overHandle(d, x, y) { const h = handlePos(d); return Math.abs(x - h.x) < HANDLE * 1.4 && Math.abs(y - h.y) < HANDLE * 1.4; }
+let wheelSave = 0;
+cv.addEventListener('wheel', e => {
+  if (!edit || edit.tab !== 'decor' || !edit.sel) return;
+  e.preventDefault();
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  edit.sel.s = clamp((edit.sel.s || 1) * Math.exp(-clamp(dy, -120, 120) * 0.0012), 0.5, 2.2);
+  const now = performance.now(); if (!edit.lastSelR || now - edit.lastSelR > 120) { edit.lastSelR = now; renderSel(); }
+  clearTimeout(wheelSave); wheelSave = setTimeout(() => { save(); renderSel(); }, 250);
+}, { passive: false });
 function setWeedLen(d, dn) { const r = LEN_RANGE[d.type] || [3, 22]; d.n = clamp(d.n + dn, r[0], r[1]); save(); renderSel(); }
 function selectDecor(d) { if (!edit) return; edit.sel = d; edit.selF = null; for (const f of fish) f.held = false; renderSel(); }
 function selectFish(f) { if (!edit) return; for (const o of fish) o.held = false; edit.selF = f; edit.sel = null; if (f) f.held = true; renderSel(); }
@@ -858,11 +927,12 @@ function renderSel() {
     let h = `<span class="lbl">${TYPE_LABEL[d.type] || ''}</span>` +
       SIZES.map(([lb, v]) => `<button data-size="${v}" class="${Math.abs(z - v) < 0.15 ? 'sel' : ''}">${lb}</button>`).join('');
     if (d.type !== 'rock') h += `<span class="sep"></span><button data-len="-1">短</button><span class="num" id="eLen">${d.n}</span><button data-len="1">長</button>`;
+    h += `<span class="sep"></span><button data-step="-0.15" aria-label="縮小">−</button><button data-step="0.15" aria-label="放大">＋</button>`;
     h += `<button data-del="1" class="del">🗑 刪除</button>`;
     el.innerHTML = h; el.style.display = 'flex';
   } else if (f) {
     const grp = f.sp === 'minnow' ? fish.filter(o => o.sp === 'minnow' && o.grp === f.grp).length : 0;
-    el.innerHTML = `<span class="lbl">${grp ? '群魚 ×' + grp : f.name}・${SPECIES[f.sp].label}・${STAGE_NAMES[stageOf(f.growth || 0)]}</span><button data-rm="1" class="del">🗑 ${grp ? '移除整群' : '移除'}</button>`;
+    el.innerHTML = `<span class="lbl">${grp ? f.name + ' ×' + grp : f.name}・${STAGE_NAMES[stageOf(f.growth || 0)]}</span><button data-rm="1" class="del">🗑 ${grp ? '移除整群' : '移除'}</button>`;
     el.style.display = 'flex';
   } else el.style.display = 'none';
   $('eCount').textContent = `${creatureCount()}/${MAX_CREATURES}`;
@@ -871,6 +941,7 @@ $('eSel').addEventListener('click', e => {
   e.stopPropagation();
   const b = e.target.closest('button'); if (!b || !edit) return;
   if (b.dataset.size && edit.sel) setDecorSize(edit.sel, +b.dataset.size);
+  else if (b.dataset.step && edit.sel) setDecorSize(edit.sel, (edit.sel.s || 1) + +b.dataset.step);
   else if (b.dataset.len && edit.sel) setWeedLen(edit.sel, +b.dataset.len);
   else if (b.dataset.del && edit.sel) removeDecor(edit.sel);
   else if (b.dataset.rm && edit.selF) removeCreature(edit.selF);
@@ -891,6 +962,10 @@ function editDown(e) {
     edit.tap = null; return;
   }
   if (edit.pts.size > 2 || edit.pinch) return;
+  if (edit.tab === 'decor' && edit.sel && overHandle(edit.sel, x, y)) {          // drag the corner handle to resize
+    const d = edit.sel, b = rockBox(d), ax = d.x, ay = b.y1;
+    edit.resize = { d, ax, ay, r0: Math.max(16, Math.hypot(x - ax, y - ay)), s0: d.s || 1 }; return;
+  }
   if (edit.tab === 'decor') {
     const d = hitDecor(x, y);
     if (d) {
@@ -907,6 +982,11 @@ function editDown(e) {
 function editMove(e) {
   const x = e.clientX, y = e.clientY;
   if (edit.pts.has(e.pointerId)) edit.pts.set(e.pointerId, { x, y });
+  if (edit.resize) {
+    const r = edit.resize; r.d.s = clamp(r.s0 * Math.hypot(x - r.ax, y - r.ay) / r.r0, 0.5, 2.2);
+    const now = performance.now(); if (!edit.lastSelR || now - edit.lastSelR > 120) { edit.lastSelR = now; renderSel(); }
+    return;
+  }
   if (edit.pinch) {
     if (edit.pts.size >= 2) {
       const [a, b] = [...edit.pts.values()];
@@ -927,6 +1007,7 @@ function editMove(e) {
 function editUp(e) {
   const x = e.clientX, y = e.clientY;
   edit.pts.delete(e.pointerId);
+  if (edit.resize) { edit.resize = null; save(); renderSel(); edit.tap = null; return; }
   if (edit.pinch) { if (edit.pts.size < 2) { edit.pinch = null; save(); renderSel(); } edit.tap = null; edit.drag = null; edit.tapF = null; return; }
   const g = edit.drag;
   if (g) {
@@ -948,6 +1029,7 @@ function editCancel(e) {
   edit.pts.delete(e.pointerId);
   if (edit.drag) { clearTimeout(edit.drag.timer); edit.drag.d.lift = 0; edit.drag = null; }
   if (edit.pts.size < 2) edit.pinch = null;
+  if (edit.resize) { edit.resize = null; save(); renderSel(); }
 }
 function setEditType(tp) { edit.type = tp; for (const b of document.querySelectorAll('#ePalD button[data-type]')) b.classList.toggle('sel', b.dataset.type === tp); }
 function setTab(tab) {
@@ -963,7 +1045,15 @@ function enterEdit() {
   document.body.classList.add('editing'); $('bar').style.display = 'none'; $('ebar').style.display = 'flex'; $('bTilt').style.display = 'none';
 }
 function exitEdit() { for (const f of fish) f.held = false; edit = null; save(); document.body.classList.remove('editing'); $('eSel').style.display = 'none'; $('ebar').style.display = 'none'; $('bar').style.display = 'flex'; $('bTilt').style.display = tiltAvailable ? 'block' : 'none'; toast('佈置好了', 1.4); }
-$('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}">＋${SPECIES[k].label}</button>`).join('');
+// v9: picker shows only each creature's picture (its ASCII art in its own colours), no species names
+const escH = c => c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '&' ? '&amp;' : c;
+function speciesArt(k) {
+  const sp = SPECIES[k];
+  let st = [2, 1, 0].find(i => { const v = sp.strs[i]; return (Array.isArray(v) ? v.length : 1) <= 3; }); if (st == null) st = 0;
+  const raw = sp.strs[st], lines = Array.isArray(raw) ? raw : [raw], col = sp.cols[st] || sp.cols[0];
+  return lines.map(l => [...l].map(c => c === ' ' ? ' ' : `<span style="color:${(sp.ac && sp.ac[c]) || col}">${escH(c)}</span>`).join('')).join('\n');
+}
+$('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}" class="art" aria-label="add"><pre>${speciesArt(k)}</pre></button>`).join('');
 btn('bDecor', enterEdit);
 $('ePalD').insertAdjacentHTML('afterbegin', '<button id="eWeed" data-type="weed">} 水草</button><button id="eRock" data-type="rock">(_) 石頭</button>' +
   Object.keys(PLANTS).map(k => `<button data-type="${k}">${PLANTS[k].icon} ${PLANTS[k].label}</button>`).join(''));
@@ -992,8 +1082,8 @@ function renderPanel() {
     const g = fish.filter(o => o.sp === 'minnow' && o.grp === f.grp), avg = key => g.reduce((a, o) => a + (o[key] || 0), 0) / g.length;
     rows.push({ sp: 'minnow', name: '群魚 ×' + g.length, hunger: avg('hunger'), mood: avg('mood'), growth: avg('growth'), sick: g.some(o => o.sick) });
   }
-  const lines = rows.map(f => `<b>${f.name}</b> <span class="dim">${SPECIES[f.sp].label}</span>\n 飽足 ${bar(f.hunger)}  心情 ${bar(f.mood)}\n 成長 ${bar((f.growth || 0) * 100)}  ${STAGE_NAMES[stageOf(f.growth || 0)]}　狀態 ${moodWord(f)}`);
-  $('panel').innerHTML = `<button id="pAuto" class="${S.autoFeed ? 'on' : ''}">∴ 自動餵食：${S.autoFeed ? '開' : '關'}</button> <button id="pSound" class="${S.sound ? 'on' : ''}">♪ 聲音：${S.sound ? '開' : '關'}</button>\n` + lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
+  const lines = rows.map(f => `<b>${f.name}</b>\n 飽足 ${bar(f.hunger)}  心情 ${bar(f.mood)}\n 成長 ${bar((f.growth || 0) * 100)}  ${STAGE_NAMES[stageOf(f.growth || 0)]}　狀態 ${moodWord(f)}`);
+  $('panel').innerHTML = `<div class="ptog"><button id="pAuto" class="${S.autoFeed ? 'on' : ''}">∴ 自動餵食：${S.autoFeed ? '開' : '關'}</button> <button id="pSound" class="${S.sound ? 'on' : ''}">♪ 聲音：${S.sound ? '開' : '關'}</button> <button id="pBreed" class="${S.breed ? 'on' : ''}">♥ 繁殖：${S.breed ? '開' : '關'}</button></div>` + lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
     `\n<span class="dim">點玻璃：魚會嚇跑　長按：餵食　點此關閉</span>`;
 }
 
@@ -1059,6 +1149,7 @@ function update(dt) {
   // intro splash
   if (intro < 1.4 && Math.random() < dt * 25) bubbles.push(newBubble(rnd(W * 0.1, W * 0.9), rnd(surfaceY + 10, surfaceY + 120), Math.random() < 0.4, rnd(40, 80)));
   for (let i = ripples.length - 1; i >= 0; i--) { ripples[i].t += dt; if (ripples[i].t > 0.9) ripples.splice(i, 1); }
+  for (let i = hearts.length - 1; i >= 0; i--) { hearts[i].t += dt; if (hearts[i].t > 1.8) hearts.splice(i, 1); }
   for (let i = crumbs.length - 1; i >= 0; i--) { crumbs[i].t += dt; crumbs[i].y -= dt * 12; if (crumbs[i].t > 0.7) crumbs.splice(i, 1); }
   for (const s of specks) {
     s.x += (s.vx + tilt.x * 6) * dt; s.y += s.vy * dt;
@@ -1130,6 +1221,11 @@ function drawEditOverlay() {
     ctx.strokeStyle = on ? (edit.hot ? 'rgba(255,90,90,0.95)' : 'rgba(159,252,255,0.95)') : sel ? 'rgba(255,224,102,0.95)' : 'rgba(159,252,255,0.35)';
     ctx.lineWidth = sel ? 2 : 1; if (sel) ctx.setLineDash([]); else ctx.setLineDash([5, 5]);
     ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+    if (sel) {                                       // corner resize handle (flat)
+      ctx.fillStyle = edit.resize ? '#fff3b0' : '#ffe066'; ctx.fillRect(b.x1 - HANDLE / 2, b.y0 - HANDLE / 2, HANDLE, HANDLE);
+      ctx.strokeStyle = '#001012'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(b.x1 - 4, b.y0 + 3); ctx.lineTo(b.x1 + 3, b.y0 - 4); ctx.moveTo(b.x1 - 3, b.y0 - 4); ctx.lineTo(b.x1 + 3, b.y0 - 4); ctx.lineTo(b.x1 + 3, b.y0 + 2); ctx.stroke();
+    }
   }
   ctx.setLineDash([]); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (life && edit.selF && fish.includes(edit.selF)) {
@@ -1147,7 +1243,7 @@ function drawEditOverlay() {
   } else {
     const hy = edit.hintY();
     ctx.fillText('佈置中：點缸底放' + (TYPE_LABEL[edit.type] || '') + '・拖曳移動', W / 2, hy);
-    ctx.fillText('點物件可調大小／長度（可雙指縮放）・拖到 🗑 刪除', W / 2, hy + fs * 1.1);
+    ctx.fillText('點物件可調大小／長度（雙指・滾輪・拖角落）・拖到 🗑 刪除', W / 2, hy + fs * 1.1);
   }
   ctx.restore();
 }
@@ -1213,6 +1309,7 @@ function renderAscii() {
   ctx.globalAlpha = 1;
   drawWeeds(false);
   drawDirt();
+  drawHearts();
   drawEditOverlay();
   // surface
   ctx.font = `${fs}px ${MONO}`; glow('#39f6ff', 10);
@@ -1308,6 +1405,7 @@ function renderPixel() {
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   drawRipples();
+  drawHearts();
   drawEditOverlay();
 }
 
@@ -1338,8 +1436,13 @@ function frame(now) {
   const dt = Math.min(0.05, Math.max(0, rawDt));
   // wall-clock care (handles background/suspend too)
   const wall = Date.now(), gap = (wall - lastWall) / 1000; lastWall = wall;
-  if (gap > 0) care(Math.min(gap, 86400 * 30), fish, gap > 60);
-  if (wall - autoChk > 1500) { autoChk = wall; autoFeedTick(); menuIdleCheck(); }
+  if (gap > 0) {
+    if (gap > 60) offlineBabies = 0;
+    const born = care(Math.min(gap, 86400 * 30), fish, gap > 60);
+    born.forEach(k => { const f = makeFish(k, fish.length, false); f.enter = false; f.x = rnd(W * 0.2, W * 0.8); f.y = rnd(surfaceY + 60, sandY - 60); fish.push(f); });
+    if (born.length) save();
+  }
+  if (wall - autoChk > 1500) { autoChk = wall; autoFeedTick(); menuIdleCheck(); breedTick(); }
   if (gap > 3600) offlineToast(gap);
   update(dt);
   render();
@@ -1352,7 +1455,7 @@ function frame(now) {
 function offlineToast(sec) {
   const h = sec / 3600;
   const hungry = fish.some(f => f.hunger < 30 || f.sick);
-  toast(`離開了 ${h < 24 ? Math.round(h) + ' 小時' : Math.round(h / 24) + ' 天'}${autoFeeds ? `，自動餵食了 ${autoFeeds} 次` : ''}${hungry ? '，魚餓了，快餵牠們' : S.dirt > 0.5 ? '，水有點髒了' : ''}`, 4); autoFeeds = 0;
+  toast(`離開了 ${h < 24 ? Math.round(h) + ' 小時' : Math.round(h / 24) + ' 天'}${autoFeeds ? `，自動餵食了 ${autoFeeds} 次` : ''}${S.bornAway ? `，♥ 多了 ${S.bornAway} 隻小寶寶` : ''}${hungry ? '，魚餓了，快餵牠們' : S.dirt > 0.5 ? '，水有點髒了' : ''}`, 4); autoFeeds = 0; S.bornAway = 0;
 }
 
 // ---------- boot ----------
@@ -1360,7 +1463,9 @@ function boot() {
   resize();
   const away = (Date.now() - (S.t || Date.now())) / 1000;
   const list = S.fish.map(p => ({ ...p }));
-  if (away > 0) care(Math.min(away, 86400 * 30), list, true);
+  offlineBabies = 0;
+  if (away > 0) list.push(...care(Math.min(away, 86400 * 30), list, true));
+  S.bornAway = offlineBabies;
   fish = list.map(makeFish);
   styleLabel();
   if (typeof S.tiltOn !== 'boolean') S.tiltOn = needsPerm ? !!S.motion : true;   // migrate: v1-v3 had no off switch
@@ -1386,6 +1491,6 @@ window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { setMenu, get ripples() { return ripples; }, get snd() { return snd; }, setSound, bloop, renderWaterSample, renderSfxSample, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { setMenu, breedTick, findPair, get hearts() { return hearts; }, MAX_CREATURES, handlePos, get ripples() { return ripples; }, get snd() { return snd; }, setSound, bloop, renderWaterSample, renderSfxSample, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();

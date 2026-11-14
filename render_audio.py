@@ -23,8 +23,13 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path="/usr/bin/google-chrome"); pg = b.new_page()
     pg.goto(url); pg.wait_for_timeout(1500)
     out = {}
-    for name, js in [("v8-water", "()=>__tank.renderWaterSample(10)"), ("v8-knock", "()=>__tank.renderSfxSample('knock')"), ("v8-feed", "()=>__tank.renderSfxSample('feed')")]:
+    for name, js in [("v9-water", "()=>__tank.renderWaterSample(10)"), ("v8-knock", "()=>__tank.renderSfxSample('knock')"), ("v8-feed", "()=>__tank.renderSfxSample('feed')")]:
         a = save(name, pg.evaluate(js)); out[name] = stats(a)
+        if name == "v9-water":   # noise floor: 10 ms windows that are digitally silent
+            w = a[: len(a) // 441 * 441].reshape(-1, 441); wr = np.sqrt((w ** 2).mean(1))
+            out[name]["silent_10ms_windows_%"] = round(float((wr < 1e-5).mean() * 100), 1)
+            out[name]["quietest_10ms_rms"] = float(wr.min())
+            on = (wr >= 1e-5).astype(int); out[name]["droplets_approx"] = int((np.diff(on) == 1).sum())
         if name == "v8-knock":   # length of one knock above -40 dB of its peak
             seg = np.abs(a[int(0.1*44100):int(0.7*44100)]); thr = seg.max() * 0.01; idx = np.where(seg > thr)[0]
             out[name]["one_knock_ms"] = int((idx[-1] - idx[0]) / 44.1)

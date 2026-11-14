@@ -48,3 +48,12 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - Samples: `python3 render_audio.py [url]` → shots/v8-water|knock|feed.wav (+ .m4a via ffmpeg) with spectrum/envelope stats.
 - UI: only a small 「≡」 button top-right; it shows/hides the bottom bar + tilt toggle (body.menu). Auto-collapse after 8 s idle unless 狀態 panel or 佈置 is open. Older tests pin the menu open via an init script (`window.__menuPin`).
 - Test: `python3 test_v8.py [url]`.
+
+## v9 (2026-11-14)
+- Water: no noise bed at all; only sparse quiet droplets every 150–500 ms (preview shots/v9-water.m4a).
+- UI: everything (餵食 換水 狀態 像素 佈置 傾斜) lives in a top-right dropdown under ≡; 狀態 sits below the dropdown; closes by tapping 狀態 again or ≡ (closes both).
+- Desktop resize in 佈置: mouse wheel over the canvas, corner handle drag, −/＋ buttons (plus 小/中/大, 短/長, pinch).
+- 生物 picker shows only each creature's coloured ASCII picture; species names removed from toasts/selection/狀態.
+- One shared 群魚 school (saves migrated: all minnows grp 1).
+- Cap 25 → 100. Breeding (♥ 繁殖 toggle in 狀態, default on): healthy adult same-species pairs, 1–3 babies, 12 h per-creature cooldown, 3–6 h between litters, offline max 3 babies per absence.
+- Tests: test_v9.py (menu/panel), test_v9b.py (school, breeding, cap, desktop resize, picker), perf_v9.py (frame cost 17 vs 100, CPU ×4), render_audio.py.

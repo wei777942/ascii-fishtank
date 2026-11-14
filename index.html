@@ -21,8 +21,10 @@
   #safe{position:fixed;visibility:hidden;pointer-events:none;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
   .ui{font-family:ui-monospace,Menlo,"SF Mono",monospace,-apple-system,"PingFang TC",sans-serif}
-  #bar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:center;gap:7px;
-    padding:0 calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);pointer-events:none}
+  #bar{position:fixed;right:calc(env(safe-area-inset-right) + 10px);top:calc(env(safe-area-inset-top) + 50px);display:flex;flex-direction:column;align-items:stretch;gap:6px;
+    min-width:150px;padding:8px;background:rgba(0,10,12,.92);border:1px solid rgba(57,246,255,.35);border-radius:16px;z-index:5}
+  #bar button{min-height:44px;padding:8px 14px;text-align:left;font-size:15px}
+  #bar #bTilt{position:static;font-size:14px;opacity:1}
   button{pointer-events:auto;background:rgba(0,20,22,.55);color:#7ffcff;border:1px solid rgba(57,246,255,.45);border-radius:14px;
     font:600 14px ui-monospace,Menlo,monospace,-apple-system,"PingFang TC",sans-serif;padding:9px 9px;min-width:0;
     touch-action:manipulation;-webkit-appearance:none}
@@ -39,6 +41,8 @@
   #eSel .sep{width:4px}
   #eSel button.del{color:#ffb0b0;border-color:rgba(255,120,120,.6);}
   #ePalC button,#ePalD button{padding:6px 8px;font-size:13px}
+  #ePalC button.art{min-width:74px;min-height:52px;padding:6px 8px;display:flex;align-items:center;justify-content:center}
+  #ePalC button.art pre{margin:0;font:600 12px/1.05 ui-monospace,Menlo,monospace;pointer-events:none}
   #eCount{font-size:11px;opacity:.75}
   #ebar button.sel,#eSel button.sel{background:rgba(70,255,140,.22);border-color:#46ff8c;color:#d8ffe4;}
   #eTrash{min-width:56px;font-size:18px;padding:6px 10px}
@@ -47,7 +51,7 @@
   body.editing #toast{top:46%}
   #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 56px);font-size:12px;padding:6px 10px;min-width:0;display:none;opacity:.8}
   #bTilt.on{color:#bfffd0;border-color:#46ff8c;opacity:1}
-  #bMenu{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:17px;line-height:1;padding:6px 10px;min-width:0;opacity:.55}
+  #bMenu{position:fixed;top:calc(env(safe-area-inset-top) + 4px);right:calc(env(safe-area-inset-right) + 10px);font-size:18px;line-height:1;width:44px;height:44px;padding:0;min-width:0;opacity:.55}
   body.menu #bMenu{opacity:1;color:#bfffd0;border-color:#46ff8c}
   body.editing #bMenu{display:none}
   body:not(.menu) #bar,body:not(.menu) #bTilt{display:none!important}
@@ -56,8 +60,9 @@
     color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;white-space:pre;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);box-sizing:border-box}
   #panel b{color:#46ff8c;font-weight:600}
   #panel .dim{color:#4f9aa0}
-  #pAuto,#pSound{font-size:13px;padding:6px 12px;min-width:0;margin:0 0 8px}
-  #pAuto.on,#pSound.on{color:#bfffd0;border-color:#46ff8c;background:rgba(70,255,140,.18)}
+  #panel .ptog{display:flex;flex-wrap:wrap;gap:6px;white-space:normal;margin-bottom:8px}
+  #pAuto,#pSound,#pBreed{font-size:13px;padding:6px 12px;min-width:0;margin:0}
+  #pAuto.on,#pSound.on,#pBreed.on{color:#bfffd0;border-color:#46ff8c;background:rgba(70,255,140,.18)}
   #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);color:#bfffd0;
     font-size:13px;background:rgba(0,16,10,.75);border:1px solid rgba(70,255,140,.4);border-radius:12px;padding:6px 12px;
     opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;}
@@ -72,6 +77,7 @@
   <button id="bInfo">♡ 狀態</button>
   <button id="bStyle">▦ 像素</button>
   <button id="bDecor">⌂ 佈置</button>
+  <button id="bTilt" class="ui">📱 傾斜：關</button>
 </div>
 <div id="ebar" class="ui">
   <div class="erow">
@@ -86,9 +92,8 @@
   <div id="eSel" class="erow"></div>
 </div>
 <button id="bMenu" class="ui" aria-label="選單">≡</button>
-<button id="bTilt" class="ui">📱 傾斜：關</button>
 <div id="panel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

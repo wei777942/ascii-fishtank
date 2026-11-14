@@ -22,7 +22,7 @@ with sync_playwright() as p:
       const buf=new Float32Array(a.fftSize);let peak=0,sum=0,n=0;const t0=performance.now();
       (function k(){a.getFloatTimeDomainData(buf);for(const v of buf){peak=Math.max(peak,Math.abs(v));sum+=v*v;n++}
         if(performance.now()-t0<2500)setTimeout(k,40);else{s.master.disconnect(a);r({rms:+Math.sqrt(sum/n).toFixed(4),peak:+peak.toFixed(3)})}})()})"""
-    R["after_tap"] = pg.evaluate("()=>{const s=__tank.snd;return {state:s.ctx.state,master:+s.master.gain.value.toFixed(2),flowNodes:!!(s.flow&&s.flow.src&&s.flow.bp&&s.flow.g),trickle:!!s.trickle,bloopTimer:!!s.nextBloop}}")
+    R["after_tap"] = pg.evaluate("()=>{const s=__tank.snd;return {state:s.ctx.state,master:+s.master.gain.value.toFixed(2),noNoiseBed:!s.flow,waterBus:!!s.water,trickle:!!s.trickle,bloopTimer:!!s.nextBloop}}")
     R["level_on"] = pg.evaluate(meter)
     # bloop on knock / feed
     pg.evaluate("()=>{window.__bq=0;const o=BaseAudioContext.prototype.createBiquadFilter;BaseAudioContext.prototype.createBiquadFilter=function(){window.__bq++;return o.apply(this,arguments)}}")
