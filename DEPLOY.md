@@ -19,5 +19,7 @@ gh api repos/wei777942/ascii-fishtank/pages/builds/latest --jq .status
 ```bash
 python3 test_ios.py https://wei777942.github.io/ascii-fishtank/   # iPhone 390x844 DPR3 headless 測試，截圖到 shots/
 python3 test_v3.py https://wei777942.github.io/ascii-fishtank/    # v3：新魚種、生物增減、裝飾大小／長度／雙指縮放、v2 存檔遷移
+python3 test_tilt.py https://wei777942.github.io/ascii-fishtank/    # v4：傾斜開關（模擬 iOS 權限＋devicemotion）
+python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全魚種幼魚／成魚對照圖 → shots/v4-species.png
 # （test_v2.py 是 v2 的舊版測試：v3 起長按改為「選取」、佈置工具列移到上方，部分項目已不適用）
 ```
