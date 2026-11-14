@@ -21,14 +21,19 @@
   #safe{position:fixed;visibility:hidden;pointer-events:none;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
   .ui{font-family:ui-monospace,Menlo,"SF Mono",monospace,-apple-system,"PingFang TC",sans-serif}
-  #bar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:center;gap:10px;
+  #bar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:center;gap:7px;
     padding:0 calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);pointer-events:none}
   button{pointer-events:auto;background:rgba(0,20,22,.55);color:#7ffcff;border:1px solid rgba(57,246,255,.45);border-radius:14px;
-    font:600 14px ui-monospace,Menlo,monospace,-apple-system,"PingFang TC",sans-serif;padding:9px 12px;min-width:64px;
+    font:600 14px ui-monospace,Menlo,monospace,-apple-system,"PingFang TC",sans-serif;padding:9px 9px;min-width:0;
     text-shadow:0 0 6px #39f6ff;box-shadow:0 0 10px rgba(57,246,255,.18) inset;touch-action:manipulation;-webkit-appearance:none}
   button:active{background:rgba(57,246,255,.22)}
   button.need{color:#bfffd0;border-color:#46ff8c;text-shadow:0 0 8px #46ff8c;animation:pulse 1.6s ease-in-out infinite}
   @keyframes pulse{50%{box-shadow:0 0 14px rgba(70,255,140,.55)}}
+  #ebar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:none;justify-content:center;gap:8px;pointer-events:none}
+  #ebar button.sel{background:rgba(70,255,140,.22);border-color:#46ff8c;color:#d8ffe4;text-shadow:0 0 8px #46ff8c}
+  #eTrash{min-width:56px;font-size:18px;padding:6px 10px}
+  #eTrash.hot{background:rgba(255,70,70,.35);border-color:#ff6a6a;box-shadow:0 0 16px rgba(255,90,90,.6)}
+  #eDone{color:#bfffd0;border-color:#46ff8c}
   #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:12px;padding:6px 10px;min-width:0;display:none}
   #panel{position:fixed;left:calc(env(safe-area-inset-left) + 14px);right:calc(env(safe-area-inset-right) + 14px);
     top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
@@ -48,10 +53,17 @@
   <button id="bWater">≈ 換水</button>
   <button id="bInfo">♡ 狀態</button>
   <button id="bStyle">▦ 像素</button>
+  <button id="bDecor">⌂ 佈置</button>
+</div>
+<div id="ebar" class="ui">
+  <button id="eWeed">} 水草</button>
+  <button id="eRock">(_) 石頭</button>
+  <button id="eTrash">🗑</button>
+  <button id="eDone">完成</button>
 </div>
 <button id="bTilt" class="ui">📱 啟用傾斜</button>
 <div id="panel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>

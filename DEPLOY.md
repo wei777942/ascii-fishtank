@@ -18,4 +18,5 @@ gh api repos/wei777942/ascii-fishtank/pages/builds/latest --jq .status
 ## 驗證
 ```bash
 python3 test_ios.py https://wei777942.github.io/ascii-fishtank/   # iPhone 390x844 DPR3 headless 測試，截圖到 shots/
+python3 test_v2.py https://wei777942.github.io/ascii-fishtank/    # v2：成長、佈置模式、v1 存檔遷移、重新整理後保留
 ```
