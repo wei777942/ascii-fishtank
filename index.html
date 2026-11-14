@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="電子魚缸">
+<meta name="theme-color" content="#000000">
+<meta name="format-detection" content="telephone=no">
+<title>電子魚缸</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+    touch-action:none;position:fixed;inset:0;width:100%}
+  canvas{position:fixed;left:0;top:0;display:block;touch-action:none}
+  #safe{position:fixed;visibility:hidden;pointer-events:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  .ui{font-family:ui-monospace,Menlo,"SF Mono",monospace,-apple-system,"PingFang TC",sans-serif}
+  #bar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;justify-content:center;gap:10px;
+    padding:0 calc(env(safe-area-inset-right) + 10px) 0 calc(env(safe-area-inset-left) + 10px);pointer-events:none}
+  button{pointer-events:auto;background:rgba(0,20,22,.55);color:#7ffcff;border:1px solid rgba(57,246,255,.45);border-radius:14px;
+    font:600 14px ui-monospace,Menlo,monospace,-apple-system,"PingFang TC",sans-serif;padding:9px 12px;min-width:64px;
+    text-shadow:0 0 6px #39f6ff;box-shadow:0 0 10px rgba(57,246,255,.18) inset;touch-action:manipulation;-webkit-appearance:none}
+  button:active{background:rgba(57,246,255,.22)}
+  button.need{color:#bfffd0;border-color:#46ff8c;text-shadow:0 0 8px #46ff8c;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 14px rgba(70,255,140,.55)}}
+  #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:12px;padding:6px 10px;min-width:0;display:none}
+  #panel{position:fixed;left:calc(env(safe-area-inset-left) + 14px);right:calc(env(safe-area-inset-right) + 14px);
+    top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
+    color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;text-shadow:0 0 5px rgba(57,246,255,.6);white-space:pre;overflow:hidden}
+  #panel b{color:#46ff8c;font-weight:600}
+  #panel .dim{color:#4f9aa0}
+  #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);color:#bfffd0;
+    font-size:13px;background:rgba(0,16,10,.75);border:1px solid rgba(70,255,140,.4);border-radius:12px;padding:6px 12px;
+    opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;text-shadow:0 0 6px #46ff8c}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="safe"></div>
+<div id="bar" class="ui">
+  <button id="bFeed">∴ 餵食</button>
+  <button id="bWater">≈ 換水</button>
+  <button id="bInfo">♡ 狀態</button>
+  <button id="bStyle">▦ 像素</button>
+</div>
+<button id="bTilt" class="ui">📱 啟用傾斜</button>
+<div id="panel" class="ui"></div>
+<div id="toast" class="ui"></div>
+<script src="app.js?v=1"></script>
+</body>
+</html>
