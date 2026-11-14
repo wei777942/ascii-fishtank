@@ -35,3 +35,9 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - Live: when average 飽足 < 45, drops pellets (≈0.7 × creature count, 4–12), 20-min cooldown, toast 「自動餵食」.
 - Offline / background catch-up: with auto-feed on, each 10-min care step tops fish up (+42) when average 飽足 < 45; dirt unchanged.
 - Test: `python3 test_v6.py [url]`.
+
+## v7 (2026-11-14)
+- Ambient sound via Web Audio (no files): looping brown noise → highpass 70 Hz → lowpass ~420 Hz (slow LFO) for water flow, plus random soft sine "bloop" bubbles every 2.5–8 s; master gain 0.55 (measured rms ≈ 0.026).
+- Starts on the first tap/touch (iOS gesture rule); suspends when hidden, resumes on return. Subtle bloop on glass tap and feeding.
+- 「♪ 聲音：開／關」 toggle next to 自動餵食 in the 狀態 panel (`S.sound`, default on, persisted).
+- Test: `python3 test_v7.py [url]`.

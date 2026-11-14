@@ -52,8 +52,8 @@
     color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;white-space:pre;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);box-sizing:border-box}
   #panel b{color:#46ff8c;font-weight:600}
   #panel .dim{color:#4f9aa0}
-  #pAuto{font-size:13px;padding:6px 12px;min-width:0;margin:0 0 8px}
-  #pAuto.on{color:#bfffd0;border-color:#46ff8c;background:rgba(70,255,140,.18)}
+  #pAuto,#pSound{font-size:13px;padding:6px 12px;min-width:0;margin:0 0 8px}
+  #pAuto.on,#pSound.on{color:#bfffd0;border-color:#46ff8c;background:rgba(70,255,140,.18)}
   #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 14px);transform:translateX(-50%);color:#bfffd0;
     font-size:13px;background:rgba(0,16,10,.75);border:1px solid rgba(70,255,140,.4);border-radius:12px;padding:6px 12px;
     opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;}
@@ -84,6 +84,6 @@
 <button id="bTilt" class="ui">📱 傾斜：關</button>
 <div id="panel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

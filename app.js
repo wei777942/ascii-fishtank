@@ -136,7 +136,8 @@ function load() {
     s.starter3 = true; const add = starterList();
     if (s.fish.length + add.length <= MAX_CREATURES) { s.fish = s.fish.concat(add); s.newFriends = true; }
   }
-  if (typeof s.autoFeed !== 'boolean') s.autoFeed = false;                   // v6: auto-feed setting, default off
+  if (typeof s.autoFeed !== 'boolean') s.autoFeed = false;
+  if (typeof s.sound !== 'boolean') s.sound = true;                            // v7: ambient sound, default on                   // v6: auto-feed setting, default off
   s.v = 3;
   return s;
 }
@@ -513,7 +514,7 @@ const isBig = b => b.big || b.age > b.grow;
 
 // ---------- interactions ----------
 function knock(x, y) {
-  ripples.push({ x, y, t: 0 }); shake = 1;
+  ripples.push({ x, y, t: 0 }); shake = 1; bloop(0.4);
   slosh.v += (x < W / 2 ? 1 : -1) * 0.04;
   const R = Math.max(W, H) * 0.75;
   for (const f of fish) {
@@ -536,6 +537,7 @@ function knock(x, y) {
   if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
 }
 function dropFood(x, n) {
+  if (performance.now() - snd.lastBloop > 300) bloop(0.5);
   for (let i = 0; i < n && food.length < 40; i++) {
     food.push({ x: clamp(x + rnd(-14, 14), 10, W - 10), y: surfaceY + rnd(-6, 4), vy: rnd(16, 26), ph: rnd(0, 6), age: 0, settled: false });
   }
@@ -610,6 +612,73 @@ function askMotion(fromButton) {
   }).catch(() => { permAsked = false; tiltLabel(); });
 }
 
+// ---------- sound (v7): Web Audio only, no files ----------
+const snd = { ctx: null, master: null, flow: null, lfo: null, nextBloop: null, lastBloop: 0 };
+const SND_VOL = 0.55;
+function noiseBuffer(ac, sec) {          // soft brown noise
+  const n = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < n; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.2; }
+  const fade = Math.floor(ac.sampleRate * 0.05);          // crossfade the loop seam
+  for (let i = 0; i < fade; i++) { const k = i / fade; d[n - fade + i] = d[n - fade + i] * (1 - k) + d[i] * k; }
+  return buf;
+}
+function initAudio() {
+  if (snd.ctx) return snd.ctx;
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+  const ac = new AC(); snd.ctx = ac;
+  snd.master = ac.createGain(); snd.master.gain.value = 0; snd.master.connect(ac.destination);
+  // water flow: looping brown noise -> lowpass whose cutoff drifts slowly, gentle swell on the gain
+  const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 4); src.loop = true;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 0.4;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 70;
+  const g = ac.createGain(); g.gain.value = 0.22;
+  const lfo = ac.createOscillator(); lfo.frequency.value = 0.07; const lfoAmt = ac.createGain(); lfoAmt.gain.value = 160;
+  lfo.connect(lfoAmt); lfoAmt.connect(lp.frequency);
+  const lfo2 = ac.createOscillator(); lfo2.frequency.value = 0.11; const lfo2Amt = ac.createGain(); lfo2Amt.gain.value = 0.06;
+  lfo2.connect(lfo2Amt); lfo2Amt.connect(g.gain);
+  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(snd.master);
+  src.start(); lfo.start(); lfo2.start();
+  snd.flow = { src, lp, g }; snd.lfo = lfo;
+  scheduleBloop();
+  return ac;
+}
+function bloop(vol = 1) {                 // a soft bubble: sine with a quick upward pitch sweep
+  const ac = snd.ctx; if (!ac || !S.sound || ac.state !== 'running') return;
+  const t0 = ac.currentTime + 0.01, f0 = rnd(260, 520), dur = rnd(0.07, 0.13);
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f0 * rnd(2.2, 3.2), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.09 * vol, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.05);
+  o.connect(g); g.connect(snd.master); o.start(t0); o.stop(t0 + dur + 0.08);
+  snd.lastBloop = performance.now();
+}
+function scheduleBloop() {
+  clearTimeout(snd.nextBloop);
+  snd.nextBloop = setTimeout(() => {
+    if (!document.hidden) { bloop(rnd(0.35, 0.8)); if (Math.random() < 0.35) setTimeout(() => bloop(rnd(0.25, 0.5)), rnd(90, 220)); }
+    scheduleBloop();
+  }, rnd(2500, 8000));
+}
+function soundApply() {                   // fade master to on/off; suspend when off or hidden
+  const ac = snd.ctx; if (!ac) return;
+  const on = S.sound && !document.hidden, now = ac.currentTime;
+  snd.master.gain.cancelScheduledValues(now); snd.master.gain.setValueAtTime(snd.master.gain.value, now);
+  if (on) { if (ac.state !== 'running') ac.resume().catch(() => {}); snd.master.gain.linearRampToValueAtTime(SND_VOL, now + 1.2); }
+  else { snd.master.gain.linearRampToValueAtTime(0, now + 0.15); setTimeout(() => { if (!(S.sound && !document.hidden) && ac.state === 'running') ac.suspend().catch(() => {}); }, 200); }
+}
+function soundGesture() {                 // iOS: audio can only start inside a user gesture
+  if (!S.sound) return;
+  const ac = initAudio(); if (!ac) return;
+  if (ac.state !== 'running') ac.resume().then(soundApply).catch(() => {});
+  else if (snd.master.gain.value < SND_VOL * 0.9) soundApply();
+}
+['pointerdown', 'touchend', 'click'].forEach(ev => document.addEventListener(ev, soundGesture, { capture: true, passive: true }));
+function setSound(on) {
+  S.sound = on; save();
+  if (on) { initAudio(); soundApply(); } else soundApply();
+  renderPanel(); toast(on ? '聲音：開' : '聲音：關', 1.4);
+}
+
 // ---------- input ----------
 let press = null;
 cv.addEventListener('pointerdown', e => {
@@ -640,6 +709,7 @@ btn('bFeed', feedButton);
 btn('bWater', () => { changeWater(); });
 btn('bInfo', () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; renderPanel(); });
 $('panel').addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('#pSound')) { e.stopPropagation(); setSound(!S.sound); return; }
   if (e.target.closest && e.target.closest('#pAuto')) { e.stopPropagation(); setAutoFeed(!S.autoFeed); return; }
   $('panel').style.display = 'none';
 });
@@ -854,7 +924,7 @@ function renderPanel() {
     rows.push({ sp: 'minnow', name: '群魚 ×' + g.length, hunger: avg('hunger'), mood: avg('mood'), growth: avg('growth'), sick: g.some(o => o.sick) });
   }
   const lines = rows.map(f => `<b>${f.name}</b> <span class="dim">${SPECIES[f.sp].label}</span>\n 飽足 ${bar(f.hunger)}  心情 ${bar(f.mood)}\n 成長 ${bar((f.growth || 0) * 100)}  ${STAGE_NAMES[stageOf(f.growth || 0)]}　狀態 ${moodWord(f)}`);
-  $('panel').innerHTML = `<button id="pAuto" class="${S.autoFeed ? 'on' : ''}">∴ 自動餵食：${S.autoFeed ? '開' : '關'}</button>\n` + lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
+  $('panel').innerHTML = `<button id="pAuto" class="${S.autoFeed ? 'on' : ''}">∴ 自動餵食：${S.autoFeed ? '開' : '關'}</button> <button id="pSound" class="${S.sound ? 'on' : ''}">♪ 聲音：${S.sound ? '開' : '關'}</button>\n` + lines.join('\n') + `\n\n<b>水質</b> ${bar((1 - S.dirt) * 100)} ${Math.round((1 - S.dirt) * 100)}%` +
     `\n<span class="dim">點玻璃：魚會嚇跑　長按：餵食　點此關閉</span>`;
 }
 
@@ -1242,11 +1312,11 @@ function boot() {
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else lastWall = Math.min(lastWall, Date.now()); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else lastWall = Math.min(lastWall, Date.now()); soundApply(); });
 window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { get snd() { return snd; }, setSound, bloop, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();
