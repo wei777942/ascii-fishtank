@@ -36,11 +36,14 @@ const SPECIES = {
   betta:  { label: '鬥魚', strs: [['~', '~{°>', '~'], ['~~', '~~{((°>', '~~'], ['~~~.', '~~~{(((°>', "~~~'"]], cols: ['#ffb3e2', '#ff5ad0', '#ff1f8f'],
             ac: { '~': '#a070ff', '.': '#a070ff', "'": '#a070ff' }, size: 1.0, max: 48, acc: 1.4, wf: 6, fin: 2.4 },
 };
+SPECIES.jelly = { label: '水母', kind: 'jelly', strs: [[' _ ', '(_)', ' ) '], [' .-. ', '(   )', " '~' ", ' ) ( ', ' ( ) '],
+    ['  .--.  ', ' (    ) ', '  \\~~/  ', '  )|(|  ', '  (|)|  ', '  )|(   ']], cols: ['#f3e2f2', '#ffc6ea', '#ff9fd8'],
+  ac: { '|': '#bfe8ff', '~': '#fff0fa', '(': '#e8c8ff', ')': '#e8c8ff' }, alpha: 0.7, size: 1.0, max: 30, acc: 1, wf: 2 };
 const kindOf = sp => SPECIES[sp].kind || 'swim';
 const isBottom = f => { const k = kindOf(f.sp); return k === 'crab' || k === 'shrimp'; };
 const strLen = str => Array.isArray(str) ? Math.max(...str.map(l => l.length)) : str.length;
 const MAX_CREATURES = 25, SCHOOL_SIZE = 6;
-const DEFAULT_NAME = { clown: '小丑', neon: '霓虹', puffer: '河豚', shrimp: '小蝦', crab: '阿蟹', minnow: '群魚', turtle: '龜龜', angel: '小仙', betta: '阿鬥' };
+const DEFAULT_NAME = { jelly: '水水', clown: '小丑', neon: '霓虹', puffer: '河豚', shrimp: '小蝦', crab: '阿蟹', minnow: '群魚', turtle: '龜龜', angel: '小仙', betta: '阿鬥' };
 const STARTERS = [['shrimp', '小蝦'], ['crab', '阿蟹'], ['turtle', '龜龜'], ['angel', '小仙'], ['betta', '阿鬥']];
 function starterList() {
   const out = STARTERS.map(([sp, name]) => ({ sp, name, hunger: 80, mood: 75, sick: false, growth: 0.08 }));
@@ -99,6 +102,8 @@ function shrink(rows, k) {
   return out;
 }
 const SPR = { pufferBig: ['...s.s.s...', '..aaaaaaa..', '.saaaaaaas.', 'aaaaaaaaaea', 'aaaaaaaaaaa', '.saaaaaaas.', '..aaaaaaa..', '...s.s.s...'] };
+BABY_PX.jelly = ['.aa.', 'abba', 's.s.', '.s.s'];
+ADULT_PX.jelly = ['..aaaa..', '.aaaaaa.', 'aabaabaa', 'aaaaaaaa', '.s.s.s.s', 's.s.s.s.', '.s.s.s..', 's...s...'];
 for (const k in ADULT_PX) SPR[k] = [BABY_PX[k], shrink(ADULT_PX[k], 0.75), ADULT_PX[k]];   // [幼魚, 少年, 成魚]
 
 // ---------- state ----------
@@ -206,9 +211,78 @@ function syncDecor() {
 }
 function rockBox(d) {        // css-px bounding box of a decor item
   const k = d.s || 1;
+  if (PLANTS[d.type]) return plantBox(d);
   if (d.type === 'weed') return { x0: d.x - charW * 1.2 * Math.max(1, k), x1: d.x + charW * 1.2 * Math.max(1, k), y0: sandY - d.n * fs * 0.78 * k - fs * 0.4 - d.lift, y1: sandY + fs * 0.5 - d.lift };
   const r = ROCKS[d.v] || ROCKS[0], w = (r[0].length * charW * 0.5 + charW * 0.3) * k + charW * 0.3;
   return { x0: d.x - w, x1: d.x + w, y0: sandY - r.length * fs * 0.82 * k - d.lift, y1: sandY + fs * 0.5 - d.lift };
+}
+
+// ---------- plant types (v5) ----------
+// each returns glyphs [x, y, ch, colour] in css px for the current frame; used by ASCII and pixel renderers
+const PLANTS = {
+  kelp:    { label: '海帶', icon: '≀', n: 16, min: 4, max: 30, rowH: 0.8 },
+  coral:   { label: '珊瑚', icon: 'Ψ', n: 6, min: 3, max: 10, rowH: 0.85 },
+  grass:   { label: '草叢', icon: '"', n: 3, min: 1, max: 6, rowH: 0.6 },
+  anemone: { label: '海葵', icon: '*', n: 4, min: 2, max: 8, rowH: 0.7 },
+};
+const TYPE_LABEL = { weed: '水草', rock: '石頭', kelp: '海帶', coral: '珊瑚', grass: '草叢', anemone: '海葵' };
+const LEN_RANGE = { weed: [3, 22], kelp: [4, 30], coral: [3, 10], grass: [1, 6], anemone: [2, 8] };
+function plantGlyphs(d) {
+  const k = d.s || 1, sc = fs / 18 * k, out = [], base = sandY - (d.lift || 0), P = PLANTS[d.type], rh = fs * P.rowH * k;
+  const sway = (j, sp, amp) => Math.sin(t * sp * d.sp + d.ph + j * 0.4) * j * amp * sc - slosh.s * 1.6 * j * j * sc;
+  if (d.type === 'kelp') {          // tall golden-brown ribbon, slow wide wave, leaf blades
+    for (let j = 0; j < d.n; j++) {
+      const x = d.x + sway(j, 0.55, 1.3) + Math.sin(t * 1.1 + j * 0.7 + d.ph) * 2 * sc, y = base - j * rh;
+      out.push([x, y, j % 2 ? '(' : ')', j > d.n - 3 ? '#e8d070' : '#c9a63a']);
+      if (j % 4 === 2) out.push([x + charW * 0.7 * k * (j % 8 === 2 ? 1 : -1), y - rh * 0.3, '~', '#a8c040']);
+    }
+  } else if (d.type === 'coral') {  // branching coral: trunk | then Y branches, Ψ tips
+    for (let j = 0; j < d.n; j++) {
+      const cnt = j === 0 ? 1 : Math.min(1 + Math.floor(j / 2), 4), y = base - j * rh, top = j === d.n - 1;
+      for (let i = 0; i < cnt; i++) {
+        const x = d.x + (i - (cnt - 1) / 2) * charW * 0.95 * k + sway(j, 0.5, 0.25);
+        out.push([x, y, j === 0 ? '|' : top ? 'Ψ' : (i + j) % 3 === 0 ? 'y' : 'Y', top ? '#ffc0a8' : '#ff7f6a']);
+      }
+    }
+  } else if (d.type === 'grass') {  // short tuft of blades
+    const blades = 5;
+    for (let b = 0; b < blades; b++) {
+      const bx = d.x + (b - 2) * charW * 0.55 * k, hgt = Math.max(1, d.n - (b === 0 || b === 4 ? 1 : 0));
+      for (let j = 0; j < hgt; j++) {
+        const x = bx + Math.sin(t * 2.2 * d.sp + d.ph + b * 1.3) * j * 1.6 * sc - slosh.s * 3 * j * sc;
+        out.push([x, base - j * rh, j === hgt - 1 ? (b % 2 ? '"' : "'") : j === 0 ? ',' : '|', j === hgt - 1 ? '#c8ff7a' : '#8fe05a']);
+      }
+    }
+  } else if (d.type === 'anemone') { // round base with waving tentacles and glowing-free yellow tips
+    out.push([d.x, base, '(___)', '#ff9a5a']);
+    for (let i = 0; i < 5; i++) {
+      const tx = d.x + (i - 2) * charW * 0.7 * k;
+      for (let j = 1; j <= d.n; j++) {
+        const x = tx + Math.sin(t * 1.6 * d.sp + d.ph + i * 1.1 + j * 0.8) * j * 1.5 * sc + (i - 2) * j * 0.8 * sc - slosh.s * 2 * j * j * sc;
+        out.push([x, base - j * rh, j === d.n ? 'o' : (i + j) % 2 ? '(' : ')', j === d.n ? '#ffe066' : '#d77bff']);
+      }
+    }
+  }
+  return out;
+}
+function plantBox(d) {
+  const k = d.s || 1, P = PLANTS[d.type], hw = { kelp: 1.6, coral: 2.3, grass: 1.8, anemone: 2.4 }[d.type] * charW * k;
+  const rows = d.type === 'anemone' ? d.n + 1 : d.n;
+  return { x0: d.x - hw, x1: d.x + hw, y0: sandY - rows * fs * P.rowH * k - fs * 0.4 - d.lift, y1: sandY + fs * 0.5 - d.lift };
+}
+function drawPlants() {
+  for (const d of decor) if (PLANTS[d.type]) {
+    ctx.font = `${fs * (d.s || 1)}px ${MONO}`;
+    for (const [x, y, ch, c] of plantGlyphs(d)) { ctx.fillStyle = c; ctx.fillText(ch, x, y); }
+  }
+}
+function drawPlantsPx() {
+  for (const d of decor) if (PLANTS[d.type]) for (const [x, y, ch, c] of plantGlyphs(d)) {
+    lctx.fillStyle = c;
+    const px = Math.round(x / PX), py = Math.round(y / PX);
+    if (ch.length > 1) lctx.fillRect(px - 2, py, 5, 1);          // anemone base
+    else { lctx.fillRect(px, py, 1, 1); if (ch === 'Ψ' || ch === 'Y' || ch === '~') { lctx.fillRect(px - 1, py - 1, 1, 1); lctx.fillRect(px + 1, py - 1, 1, 1); } }
+  }
 }
 
 // ---------- fish ----------
@@ -227,7 +301,7 @@ function makeFish(p, i, pour) {
   return f;
 }
 const halfLen = f => { const L = look(f); return strLen(L.str) * charW * L.scale / 2; };
-const mouthX = f => f.sp === 'crab' ? f.x : f.x + Math.sign(f.flip || 1) * halfLen(f) * 0.9;
+const mouthX = f => f.sp === 'crab' || f.sp === 'jelly' ? f.x : f.x + Math.sign(f.flip || 1) * halfLen(f) * 0.9;
 const schoolKey = f => kindOf(f.sp) === 'school' ? f.sp + ':' + (f.grp || 0) : null;
 const floorY = f => sandY - fs * 0.34 * look(f).scale;
 function bottomFood(f) {
@@ -311,9 +385,36 @@ function updateBottom(f, dt) {
   f.ang += (targAng - f.ang) * Math.min(1, dt * 5);
   f.ph += dt * sp.wf * (0.3 + Math.min(1.5, Math.abs(f.vx) / sp.max));
 }
+function updateJelly(f, dt) {   // pulse up, drift slowly down, steer weakly toward food
+  const sp = SPECIES[f.sp], hf = f.sick ? 0.4 : f.hunger < 30 ? 0.5 + 0.5 * f.hunger / 30 : 1;
+  f.pulseT = (f.pulseT == null ? rnd(0, 2) : f.pulseT) - dt;
+  const low = bounds.b - fs * 2, high = surfaceY + fs * 1.6;
+  if (f.enter) { if (f.y > surfaceY + fs * 3) f.enter = false; f.vy = Math.max(f.vy, 30); }
+  else if (((f.pulseT <= 0 && (f.y > (f.jy || (f.jy = rnd(surfaceY + 90, low))) || Math.random() < 0.004)) || f.y > low) && !f.held) {
+    if (Math.random() < 0.35) f.jy = rnd(surfaceY + 90, low);
+    f.pulseT = rnd(1.8, 3.2) / hf; f.pulse = 1;
+    f.vy = -rnd(40, 65) * hf * (f.y < high + 40 ? 0.3 : 1);
+  }
+  f.pulse = Math.max(0, (f.pulse || 0) - dt * 2.2);
+  f.vy = Math.min(f.vy + 26 * dt, 18);             // water drag + slow sink
+  if (f.y < high) f.vy = Math.max(f.vy, 5);
+  const fd = f.hunger < 96 ? nearestFood(f) : null;
+  if (f.startle > 0) f.startle -= dt;
+  else {
+    let tx = fd ? fd.x : f.tx; if (!fd && (Math.abs(f.tx - f.x) < 10 || Math.random() < dt * 0.1)) f.tx = rnd(bounds.l, bounds.r);
+    f.vx += (clamp((tx - f.x) * 0.3, -sp.max * 0.5, sp.max * 0.5) - f.vx) * Math.min(1, dt * 0.8);
+  }
+  if (f.held) { f.vx *= 0.9; f.vy *= 0.9; }
+  f.vx += tilt.x * 30 * dt;
+  f.vx *= 1 - dt * 0.3;
+  f.x = clamp(f.x + f.vx * dt, fs, W - fs); f.y = clamp(f.y + f.vy * dt, surfaceY - 40, sandY - fs * 1.5);
+  f.face = 1; f.flip = 1; f.ang += (clamp(f.vx / 120, -0.25, 0.25) - f.ang) * Math.min(1, dt * 2);
+  f.ph += dt * sp.wf;
+}
 function updateFish(f, dt, schools) {
   const sp = SPECIES[f.sp];
   if (isBottom(f)) { updateBottom(f, dt); afterMove(f, dt); return; }
+  if (sp.kind === 'jelly') { updateJelly(f, dt); afterMove(f, dt); return; }
   const key = schoolKey(f), neonC = key && schools[key], gT = key && groupTs[key];
   const hf = f.sick ? 0.35 : f.hunger < 30 ? 0.45 + 0.55 * f.hunger / 30 : 1;
   const mf = 0.75 + 0.25 * f.mood / 100;
@@ -423,6 +524,7 @@ function knock(x, y) {
     else if (f.sp === 'shrimp') {          // tail flick: shoots backwards without turning
       f.mode = 'walk'; f.vx = -f.face * sp.max * (4 + 4 * s); f.vy = -rnd(70, 130) * (0.5 + s); f.startle = 0.9;
     } else if (f.sp === 'turtle') { f.surfacing = 0; f.vx *= 0.6; f.vy *= 0.6; }
+    else if (f.sp === 'jelly') { f.vx = ox * 50 * (0.4 + s); f.vy = oy * 35 * (0.4 + s); f.startle = 1.2; }
   }
   if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
 }
@@ -544,12 +646,13 @@ function removeDecor(d) {
   decor.splice(i, 1); syncDecor(); save();
   if (edit && edit.sel === d) selectDecor(null);
   for (let k = 0; k < 8; k++) bubbles.push(newBubble(d.x + rnd(-14, 14), sandY - rnd(0, 40), Math.random() < 0.4, rnd(50, 90)));
-  toast(d.type === 'weed' ? '移除了水草' : '移除了石頭', 1.4);
+  toast('移除了' + (TYPE_LABEL[d.type] || ''), 1.4);
 }
 function addDecor(x) {
   if (decor.length >= MAX_DECOR) { toast('放太多了，先刪掉一些吧'); return; }
   const d = edit.type === 'weed'
     ? { type: 'weed', fx: 0, n: (7 + Math.random() * 7) | 0, v: 0, back: false, s: 1 }
+    : PLANTS[edit.type] ? { type: edit.type, fx: 0, n: PLANTS[edit.type].n, v: 0, back: false, s: 1 }
     : { type: 'rock', fx: 0, n: 0, v: edit.rv = (edit.rv + 1) % ROCKS.length, back: false, s: 1 };
   d.fx = clamp(x, 10, W - 10) / W; d.ph = rnd(0, 6.28); d.sp = rnd(0.7, 1.2); d.lift = 30;
   decor.push(d); syncDecor(); save();
@@ -585,7 +688,7 @@ function removeCreature(f) {
   save(); toast(`${gone.length > 1 ? '群魚 ×' + gone.length : f.name}回到大海了`, 1.6); renderSel();
 }
 function setDecorSize(d, v) { d.s = clamp(v, 0.5, 2.2); save(); renderSel(); }
-function setWeedLen(d, dn) { d.n = clamp(d.n + dn, 3, 22); save(); renderSel(); }
+function setWeedLen(d, dn) { const r = LEN_RANGE[d.type] || [3, 22]; d.n = clamp(d.n + dn, r[0], r[1]); save(); renderSel(); }
 function selectDecor(d) { if (!edit) return; edit.sel = d; edit.selF = null; for (const f of fish) f.held = false; renderSel(); }
 function selectFish(f) { if (!edit) return; for (const o of fish) o.held = false; edit.selF = f; edit.sel = null; if (f) f.held = true; renderSel(); }
 function renderSel() {
@@ -593,9 +696,9 @@ function renderSel() {
   const d = edit.tab === 'decor' ? edit.sel : null, f = edit.tab === 'life' ? edit.selF : null;
   if (d) {
     const z = d.s || 1;
-    let h = `<span class="lbl">${d.type === 'weed' ? '水草' : '石頭'}</span>` +
+    let h = `<span class="lbl">${TYPE_LABEL[d.type] || ''}</span>` +
       SIZES.map(([lb, v]) => `<button data-size="${v}" class="${Math.abs(z - v) < 0.15 ? 'sel' : ''}">${lb}</button>`).join('');
-    if (d.type === 'weed') h += `<span class="sep"></span><button data-len="-1">短</button><span class="num" id="eLen">${d.n}</span><button data-len="1">長</button>`;
+    if (d.type !== 'rock') h += `<span class="sep"></span><button data-len="-1">短</button><span class="num" id="eLen">${d.n}</span><button data-len="1">長</button>`;
     h += `<button data-del="1" class="del">🗑 刪除</button>`;
     el.innerHTML = h; el.style.display = 'flex';
   } else if (f) {
@@ -687,7 +790,7 @@ function editCancel(e) {
   if (edit.drag) { clearTimeout(edit.drag.timer); edit.drag.d.lift = 0; edit.drag = null; }
   if (edit.pts.size < 2) edit.pinch = null;
 }
-function setEditType(tp) { edit.type = tp; $('eWeed').classList.toggle('sel', tp === 'weed'); $('eRock').classList.toggle('sel', tp === 'rock'); }
+function setEditType(tp) { edit.type = tp; for (const b of document.querySelectorAll('#ePalD button[data-type]')) b.classList.toggle('sel', b.dataset.type === tp); }
 function setTab(tab) {
   edit.tab = tab; selectDecor(null); selectFish(null);
   $('ePalD').style.display = tab === 'decor' ? 'flex' : 'none';
@@ -703,8 +806,9 @@ function enterEdit() {
 function exitEdit() { for (const f of fish) f.held = false; edit = null; save(); document.body.classList.remove('editing'); $('eSel').style.display = 'none'; $('ebar').style.display = 'none'; $('bar').style.display = 'flex'; $('bTilt').style.display = tiltAvailable ? 'block' : 'none'; toast('佈置好了', 1.4); }
 $('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}">＋${SPECIES[k].label}</button>`).join('');
 btn('bDecor', enterEdit);
-btn('eWeed', () => setEditType('weed'));
-btn('eRock', () => setEditType('rock'));
+$('ePalD').insertAdjacentHTML('afterbegin', '<button id="eWeed" data-type="weed">} 水草</button><button id="eRock" data-type="rock">(_) 石頭</button>' +
+  Object.keys(PLANTS).map(k => `<button data-type="${k}">${PLANTS[k].icon} ${PLANTS[k].label}</button>`).join(''));
+$('ePalD').addEventListener('click', e => { const b = e.target.closest('button[data-type]'); if (b && edit) { e.stopPropagation(); setEditType(b.dataset.type); } });
 btn('eTrash', () => toast('把水草或石頭拖到這裡刪除', 1.6));
 btn('eTabD', () => setTab('decor'));
 btn('eTabC', () => setTab('life'));
@@ -808,7 +912,7 @@ function update(dt) {
 }
 
 // ---------- render: ASCII ----------
-function glow(color, blur) { ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = blur * DPR * (1 - S.dirt * 0.6); }
+function glow(color) { ctx.fillStyle = color; ctx.shadowBlur = 0; }   // v5: flat colours, no glow
 function drawBackground() {
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
@@ -875,7 +979,7 @@ function drawEditOverlay() {
     ctx.strokeStyle = 'rgba(255,224,102,0.95)'; ctx.lineWidth = 2;
     for (const o of group) { ctx.beginPath(); ctx.arc(o.x, o.y, o === f ? r : r * 0.8, 0, 6.283); ctx.stroke(); }
   }
-  ctx.fillStyle = '#bfffd0'; ctx.shadowColor = '#46ff8c'; ctx.shadowBlur = 6 * DPR;
+  ctx.fillStyle = '#bfffd0'; ctx.shadowBlur = 0;
   ctx.font = `${Math.max(12, fs * 0.72)}px -apple-system, "PingFang TC", sans-serif`;
   if (life) {
     const hy = edit.hintY();
@@ -883,7 +987,7 @@ function drawEditOverlay() {
     ctx.fillText(`點缸裡的生物可選取／移除（${fish.length}/${MAX_CREATURES}）`, W / 2, hy + fs * 1.1);
   } else {
     const hy = edit.hintY();
-    ctx.fillText('佈置中：點缸底放' + (edit.type === 'weed' ? '水草' : '石頭') + '・拖曳移動', W / 2, hy);
+    ctx.fillText('佈置中：點缸底放' + (TYPE_LABEL[edit.type] || '') + '・拖曳移動', W / 2, hy);
     ctx.fillText('點物件可調大小／長度（可雙指縮放）・拖到 🗑 刪除', W / 2, hy + fs * 1.1);
   }
   ctx.restore();
@@ -906,6 +1010,7 @@ function drawFishA(f) {
   glow(col, f.sick ? 4 : 7 + 5 * (f.growth || 0));
   if (L.st === 0 && !f.sick) ctx.globalAlpha = 0.85;
   if (f.hunger < 30 && !f.sick) ctx.globalAlpha = 0.75;
+  if (sp.alpha) ctx.globalAlpha *= sp.alpha;
   const lines = Array.isArray(str) ? str : [str], mid = (lines.length - 1) / 2;
   const n = strLen(str), w = n * charW, crab = f.sp === 'crab';
   const amp = fs * 0.11 * (sp.fin || 1) * (0.35 + Math.min(1.2, Math.hypot(f.vx, f.vy) / sp.max));
@@ -914,11 +1019,13 @@ function drawFishA(f) {
     for (let i = 0; i < line.length; i++) {
       if (line[i] === ' ') continue;
       const tail = Math.pow(1 - i / n, 1.4);
-      const wy = crab ? Math.sin(f.ph * 2 + i * Math.PI) * fs * 0.05 * Math.min(1, Math.abs(f.vx) / 8 + 0.2) : Math.sin(f.ph - i * 0.8) * amp * tail;
+      const jelly = sp.kind === 'jelly', jx = jelly && li >= 2 ? Math.sin(t * 2.2 + f.seed + li * 0.9) * fs * 0.1 * li : 0;
+      const wy = jelly ? (li < 2 ? -(f.pulse || 0) * fs * 0.15 : (f.pulse || 0) * fs * 0.1 * li)
+        : crab ? Math.sin(f.ph * 2 + i * Math.PI) * fs * 0.05 * Math.min(1, Math.abs(f.vx) / 8 + 0.2) : Math.sin(f.ph - i * 0.8) * amp * tail;
       const ac = sp.ac && !f.sick && sp.ac[line[i]];
-      if (ac) { ctx.fillStyle = ac; ctx.shadowColor = ac; }
-      ctx.fillText(line[i], -w / 2 + (i + 0.5) * charW, ly + wy);
-      if (ac) { ctx.fillStyle = col; ctx.shadowColor = col; }
+      if (ac) ctx.fillStyle = ac;
+      ctx.fillText(line[i], -w / 2 + (i + 0.5) * charW + (jelly ? jx * (li < 2 ? 0 : 1) - (li < 2 ? (i - n / 2) * (f.pulse || 0) * charW * -0.08 : 0) : 0), ly + wy);
+      if (ac) ctx.fillStyle = col;
     }
   }
   ctx.restore();
@@ -930,6 +1037,7 @@ function renderAscii() {
   drawWeeds(true);
   drawSand();
   drawRocks();
+  drawPlants();
   // food
   ctx.font = `${fs * 0.9}px ${MONO}`; glow('#ffe066', 8);
   for (const p of food) ctx.fillText(p.settled ? '.' : '∘', p.x, p.y);
@@ -957,7 +1065,7 @@ function drawRipples() {
   for (const r of ripples) {
     const a = 1 - r.t / 0.9;
     ctx.save(); ctx.globalAlpha = a;
-    ctx.strokeStyle = '#9ffcff'; ctx.shadowColor = '#39f6ff'; ctx.shadowBlur = 10 * DPR; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#9ffcff'; ctx.shadowBlur = 0; ctx.lineWidth = 1.5;
     for (let k = 0; k < 2; k++) { const rad = (r.t - k * 0.15) * 260; if (rad > 0) { ctx.beginPath(); ctx.arc(r.x, r.y, rad, 0, 6.283); ctx.stroke(); } }
     ctx.fillStyle = '#e8ffff'; ctx.font = `600 ${fs * 1.2}px -apple-system, "PingFang TC", sans-serif`;
     if (!r.quiet) ctx.fillText('叩', r.x, r.y - r.t * 30);
@@ -966,7 +1074,7 @@ function drawRipples() {
 }
 
 // ---------- render: pixel art ----------
-const PCOL = { clown: { b: '#ffffff' }, neon: { b: '#ff3d6e' }, puffer: { b: '#c07a10', s: '#ff9a3c' }, shrimp: { b: '#ffd6de', s: '#ff8fa8' }, crab: { b: '#ffd0a0' },
+const PCOL = { jelly: { b: '#ffffff', s: '#bfe8ff' }, clown: { b: '#ffffff' }, neon: { b: '#ff3d6e' }, puffer: { b: '#c07a10', s: '#ff9a3c' }, shrimp: { b: '#ffd6de', s: '#ff8fa8' }, crab: { b: '#ffd0a0' },
   minnow: { b: '#7fd0ff' }, turtle: { b: '#d8b060' }, angel: { b: '#ffe066' }, betta: { b: '#a070ff' } };
 function sprite(rows, cx, cy, mirror, cols, thin, k = 1) {
   const h = rows.length, w = rows[0].length;
@@ -999,6 +1107,7 @@ function renderPixel() {
     const v = ((x * 73 + y * 151) ^ (x * y)) % 11;
     if (v < 2) { lctx.fillStyle = v ? '#2e8a64' : '#1c5a40'; lctx.fillRect(x, y, 1, 1); }
   }
+  drawPlantsPx();
   for (const d of decor) if (d.type === 'rock') {
     const z = d.s || 1, k = z >= 1.25 ? 2 : 1, r = z < 0.85 ? shrink(ROCKPX[d.v] || ROCKPX[0], 0.7) : (ROCKPX[d.v] || ROCKPX[0]);
     sprite(r, d.x / PX, (sandY - d.lift) / PX - r.length * k / 2 + 1, false, { a: '#4f8f88', b: '#8fd0c8' }, false, k);
@@ -1010,7 +1119,9 @@ function renderPixel() {
     const cols = f.sick ? { a: '#6f8f7a', b: '#9fb8a8', s: '#6f8f7a' } : { ...PCOL[f.sp], a: L.color };
     const rows = f.sp === 'puffer' && f.puff > 0.35 ? SPR.pufferBig : SPR[f.sp][L.st];
     const tiltOff = Math.round(f.ang * 2);
+    lctx.globalAlpha = SPECIES[f.sp].alpha || 1;
     sprite(rows, f.x / PX, f.y / PX + tiltOff * 0, f.flip < 0, cols, f.sick || f.hunger < 30);
+    lctx.globalAlpha = 1;
   }
   lctx.fillStyle = '#9ffcff';
   for (const b of bubbles) {
@@ -1028,7 +1139,7 @@ function renderPixel() {
   drawBackground();
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.shadowColor = '#39f6ff'; ctx.shadowBlur = 8 * DPR * (1 - S.dirt * 0.6);
+  ctx.shadowBlur = 0;
   ctx.drawImage(low, 0, 0, lw * PX, lh * PX);
   ctx.restore();
   if (S.dirt > 0.02) {

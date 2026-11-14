@@ -23,3 +23,9 @@ python3 test_tilt.py https://wei777942.github.io/ascii-fishtank/    # v4：傾�
 python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全魚種幼魚／成魚對照圖 → shots/v4-species.png
 # （test_v2.py 是 v2 的舊版測試：v3 起長按改為「選取」、佈置工具列移到上方，部分項目已不適用）
 ```
+
+## v5 (2026-11-14)
+- Removed all glow (canvas shadowBlur, CSS text/box-shadow, icon blur) — flat crisp colours.
+- New creature 水母 (jelly): pulse-up / drift-down, translucent, 3 stages, pixel sprite.
+- New plants in 裝飾: 海帶 / 珊瑚 / 草叢 / 海葵 (select, resize, length, delete, persist, pixel mode).
+- Tests: `python3 test_v5.py [url]` (no-glow + jelly + plants), plus test_v3 / test_tilt / test_ios / test_species (→ shots/v5-species.png).

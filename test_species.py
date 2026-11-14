@@ -3,7 +3,7 @@ from playwright.sync_api import sync_playwright
 from PIL import Image
 url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
-SP = ['clown', 'neon', 'puffer', 'shrimp', 'crab', 'minnow', 'turtle', 'angel', 'betta']
+SP = ['jelly', 'clown', 'neon', 'puffer', 'shrimp', 'crab', 'minnow', 'turtle', 'angel', 'betta']
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path="/usr/bin/google-chrome")
     ctx = b.new_context(viewport={"width": 390, "height": 1100}, device_scale_factor=2, is_mobile=True, has_touch=True, user_agent=UA)
@@ -30,4 +30,4 @@ with sync_playwright() as p:
     b.close()
 a, c = Image.open("/tmp/sp_ascii.png"), Image.open("/tmp/sp_pixel.png")
 out = Image.new("RGB", (a.width + c.width + 20, a.height), (0, 0, 0)); out.paste(a, (0, 0)); out.paste(c, (a.width + 20, 0))
-out.save("/workspace/fishtank/shots/v4-species.png"); print(out.size)
+out.save("/workspace/fishtank/shots/v5-species.png"); print(out.size)
