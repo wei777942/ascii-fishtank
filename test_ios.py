@@ -20,6 +20,7 @@ with sync_playwright() as p:
     # knock near the middle-ish fish: tap at the first fish position
     fx, fy = bpos[0]
     tx, ty = max(30, min(360, fx + 10)), max(120, min(700, fy))
+    if ty < 400: tx = min(tx, 200)   # v9: keep clear of the top-right dropdown menu
     before = pg.evaluate(f"()=>__tank.fish.map(f=>Math.hypot(f.x-{tx},f.y-{ty}))")
     pg.touchscreen.tap(tx, ty); pg.wait_for_timeout(80)
     st = pg.evaluate("()=>__tank.fish.map(f=>+f.startle.toFixed(2))")
