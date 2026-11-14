@@ -514,7 +514,7 @@ const isBig = b => b.big || b.age > b.grow;
 
 // ---------- interactions ----------
 function knock(x, y) {
-  ripples.push({ x, y, t: 0 }); shake = 1; bloop(0.4);
+  ripples.push({ x, y, t: 0 }); shake = 1; sfx(knockSound); bloop(0.4);
   slosh.v += (x < W / 2 ? 1 : -1) * 0.04;
   const R = Math.max(W, H) * 0.75;
   for (const f of fish) {
@@ -537,7 +537,7 @@ function knock(x, y) {
   if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
 }
 function dropFood(x, n) {
-  if (performance.now() - snd.lastBloop > 300) bloop(0.5);
+  if (performance.now() - snd.lastBloop > 300) { sfx(sprinkleSound); bloop(0.5); }
   for (let i = 0; i < n && food.length < 40; i++) {
     food.push({ x: clamp(x + rnd(-14, 14), 10, W - 10), y: surfaceY + rnd(-6, 4), vy: rnd(16, 26), ph: rnd(0, 6), age: 0, settled: false });
   }
@@ -613,35 +613,95 @@ function askMotion(fromButton) {
 }
 
 // ---------- sound (v7): Web Audio only, no files ----------
-const snd = { ctx: null, master: null, flow: null, lfo: null, nextBloop: null, lastBloop: 0 };
+const snd = { ctx: null, master: null, water: null, flow: null, trickle: null, dropT: 0, nextBloop: null, lastBloop: 0 };
 const SND_VOL = 0.55;
-function noiseBuffer(ac, sec) {          // soft brown noise
+function noiseBuffer(ac, sec) {          // white noise loop (v8: bandpassed for a filter-outflow hiss)
   const n = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < n; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.2; }
-  const fade = Math.floor(ac.sampleRate * 0.05);          // crossfade the loop seam
-  for (let i = 0; i < fade; i++) { const k = i / fade; d[n - fade + i] = d[n - fade + i] * (1 - k) + d[i] * k; }
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
   return buf;
+}
+// v8 water: steady (unmodulated) bandpassed hiss + a dense babble of tiny droplets 800–3000 Hz every 20–120 ms
+function waterBed(ac, dest) {
+  const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 3); src.loop = true;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.8;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
+  const g = ac.createGain(); g.gain.value = 0.11;
+  src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(dest); src.start();
+  return { src, bp, g };
+}
+function droplet(ac, dest, t0, rand = Math.random) {
+  const r = (a, b) => a + rand() * (b - a);
+  const f0 = 800 * Math.pow(3000 / 800, rand() * rand() * 0.6 + rand() * 0.4), dur = r(0.012, 0.045);
+  const amp = 0.014 + Math.pow(rand(), 2.4) * 0.11;               // mostly tiny, a few brighter ones
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f0 * r(1.25, 1.9), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(amp, t0 + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.01);
+}
+function nextDropGap(rand = Math.random) {                         // irregular: short bursts + small pauses
+  return rand() < 0.65 ? 0.02 + rand() * 0.04 : 0.05 + rand() * 0.07;
+}
+function trickleTick() {
+  const ac = snd.ctx; if (!ac || ac.state !== 'running' || !S.sound || document.hidden) return;
+  if (snd.dropT < ac.currentTime + 0.01) snd.dropT = ac.currentTime + 0.02;
+  while (snd.dropT < ac.currentTime + 0.25) { droplet(ac, snd.water, snd.dropT); snd.dropT += nextDropGap(); }
 }
 function initAudio() {
   if (snd.ctx) return snd.ctx;
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
   const ac = new AC(); snd.ctx = ac;
   snd.master = ac.createGain(); snd.master.gain.value = 0; snd.master.connect(ac.destination);
-  // water flow: looping brown noise -> lowpass whose cutoff drifts slowly, gentle swell on the gain
-  const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 4); src.loop = true;
-  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 0.4;
-  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 70;
-  const g = ac.createGain(); g.gain.value = 0.22;
-  const lfo = ac.createOscillator(); lfo.frequency.value = 0.07; const lfoAmt = ac.createGain(); lfoAmt.gain.value = 160;
-  lfo.connect(lfoAmt); lfoAmt.connect(lp.frequency);
-  const lfo2 = ac.createOscillator(); lfo2.frequency.value = 0.11; const lfo2Amt = ac.createGain(); lfo2Amt.gain.value = 0.06;
-  lfo2.connect(lfo2Amt); lfo2Amt.connect(g.gain);
-  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(snd.master);
-  src.start(); lfo.start(); lfo2.start();
-  snd.flow = { src, lp, g }; snd.lfo = lfo;
+  snd.water = ac.createGain(); snd.water.gain.value = 1; snd.water.connect(snd.master);
+  snd.flow = waterBed(ac, snd.water); snd.dropT = 0;
+  snd.trickle = setInterval(trickleTick, 70);
   scheduleBloop();
   return ac;
+}
+// v8: knuckle-on-glass knock — bandpassed noise click + quickly decaying ring of a few partials (< 150 ms)
+function knockSound(ac, dest, t0, rand = Math.random) {
+  const v = 0.75 + rand() * 0.4, p = 0.92 + rand() * 0.16;
+  const n = Math.floor(ac.sampleRate * 0.03), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (rand() * 2 - 1) * Math.exp(-i / (ac.sampleRate * 0.004));
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3000 * p; bp.Q.value = 1.2;
+  const cg = ac.createGain(); cg.gain.value = 0.32 * v;
+  src.connect(bp); bp.connect(cg); cg.connect(dest); src.start(t0);
+  [[1550, 0.07, 0.09], [2330, 0.045, 0.06], [2980, 0.03, 0.04]].forEach(([f, a, dec]) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f * p;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(a * v, t0 + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dec);
+    o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dec + 0.01);
+  });
+}
+// v8: flakes shaken from a tube — many tiny highpassed noise grains (3–8 kHz) over ~0.6 s with a gentle fade
+function sprinkleSound(ac, dest, t0, rand = Math.random) {
+  const len = 0.45 + rand() * 0.3, sr = ac.sampleRate, n = Math.floor(sr * (len + 0.05));
+  const buf = ac.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  for (let t = 0; t < len; t += 0.004 + rand() * 0.012) {               // random grain timing
+    const env = Math.min(1, t / 0.06) * Math.pow(1 - t / len, 1.5), a = env * (0.3 + rand() * 0.7);
+    const i0 = Math.floor(t * sr), gl = Math.floor(sr * (0.002 + rand() * 0.004));
+    for (let i = 0; i < gl && i0 + i < n; i++) d[i0 + i] += (rand() * 2 - 1) * a * Math.sin(Math.PI * i / gl);
+  }
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3000;
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 8000;
+  const g = ac.createGain(); g.gain.value = 0.16;
+  src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(dest); src.start(t0);
+}
+function sfx(fn) { const ac = snd.ctx; if (!ac || !S.sound || ac.state !== 'running') return; fn(ac, snd.master, ac.currentTime + 0.005); }
+function renderSfxSample(kind, sec = 2.5) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ac = new OAC(1, Math.floor(44100 * sec), 44100);
+  const m = ac.createGain(); m.gain.value = SND_VOL; m.connect(ac.destination);
+  if (kind === 'knock') [0.1, 0.8, 1.5].forEach(t => knockSound(ac, m, t)); else [0.1, 1.3].forEach(t => sprinkleSound(ac, m, t));
+  return ac.startRendering().then(b => Array.from(b.getChannelData(0)));
+}
+// offline render of the water layer (bubbles excluded) for previews/tests
+function renderWaterSample(sec = 10) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, ac = new OAC(1, Math.floor(44100 * sec), 44100);
+  const m = ac.createGain(); m.gain.value = SND_VOL; m.connect(ac.destination);
+  waterBed(ac, m);
+  for (let t = 0.02; t < sec; t += nextDropGap()) droplet(ac, m, t);
+  return ac.startRendering().then(b => Array.from(b.getChannelData(0)));
 }
 function bloop(vol = 1) {                 // a soft bubble: sine with a quick upward pitch sweep
   const ac = snd.ctx; if (!ac || !S.sound || ac.state !== 'running') return;
@@ -715,6 +775,15 @@ $('panel').addEventListener('click', e => {
 });
 btn('bStyle', () => { S.style = S.style === 'ascii' ? 'pixel' : 'ascii'; styleLabel(); save(); });
 btn('bTilt', tiltButton);
+// v8: buttons hidden by default; ≡ shows/hides the bottom bar + tilt toggle; auto-collapse after 8 s idle
+let menuT = 0;
+function setMenu(open) { document.body.classList.toggle('menu', open); menuT = Date.now(); }
+function menuIdleCheck() {
+  if (window.__menuPin || !document.body.classList.contains('menu') || edit || $('panel').style.display === 'block') { menuT = Date.now(); return; }
+  if (Date.now() - menuT > 8000) setMenu(false);
+}
+document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
+btn('bMenu', () => setMenu(!document.body.classList.contains('menu')));
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
 
 // ---------- edit mode: 裝飾 (decor) + 生物 (creatures) ----------
@@ -1270,7 +1339,7 @@ function frame(now) {
   // wall-clock care (handles background/suspend too)
   const wall = Date.now(), gap = (wall - lastWall) / 1000; lastWall = wall;
   if (gap > 0) care(Math.min(gap, 86400 * 30), fish, gap > 60);
-  if (wall - autoChk > 1500) { autoChk = wall; autoFeedTick(); }
+  if (wall - autoChk > 1500) { autoChk = wall; autoFeedTick(); menuIdleCheck(); }
   if (gap > 3600) offlineToast(gap);
   update(dt);
   render();
@@ -1317,6 +1386,6 @@ window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { get snd() { return snd; }, setSound, bloop, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { setMenu, get ripples() { return ripples; }, get snd() { return snd; }, setSound, bloop, renderWaterSample, renderSfxSample, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();

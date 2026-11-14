@@ -16,6 +16,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path="/usr/bin/google-chrome")
     for mode in ("ios", "plain"):
         ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
+        ctx.add_init_script("document.addEventListener('DOMContentLoaded',()=>{document.body.classList.add('menu');window.__menuPin=1})")  # v8: buttons live behind ≡; pin the menu open for older tests
         if mode == "ios": ctx.add_init_script(IOS_SHIM)
         pg = ctx.new_page(); errs = []
         pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("console", lambda m: m.type == "error" and errs.append(m.text))

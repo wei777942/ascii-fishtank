@@ -45,8 +45,12 @@
   #eTrash.hot{background:rgba(255,70,70,.35);border-color:#ff6a6a;}
   #eDone{color:#bfffd0;border-color:#46ff8c}
   body.editing #toast{top:46%}
-  #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:12px;padding:6px 10px;min-width:0;display:none;opacity:.8}
+  #bTilt{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 56px);font-size:12px;padding:6px 10px;min-width:0;display:none;opacity:.8}
   #bTilt.on{color:#bfffd0;border-color:#46ff8c;opacity:1}
+  #bMenu{position:fixed;top:calc(env(safe-area-inset-top) + 8px);right:calc(env(safe-area-inset-right) + 10px);font-size:17px;line-height:1;padding:6px 10px;min-width:0;opacity:.55}
+  body.menu #bMenu{opacity:1;color:#bfffd0;border-color:#46ff8c}
+  body.editing #bMenu{display:none}
+  body:not(.menu) #bar,body:not(.menu) #bTilt{display:none!important}
   #panel{position:fixed;left:calc(env(safe-area-inset-left) + 14px);right:calc(env(safe-area-inset-right) + 14px);
     top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
     color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;white-space:pre;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);box-sizing:border-box}
@@ -81,9 +85,10 @@
   <div id="ePalC" class="erow wrap"></div>
   <div id="eSel" class="erow"></div>
 </div>
+<button id="bMenu" class="ui" aria-label="選單">≡</button>
 <button id="bTilt" class="ui">📱 傾斜：關</button>
 <div id="panel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

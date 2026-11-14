@@ -41,3 +41,10 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - Starts on the first tap/touch (iOS gesture rule); suspends when hidden, resumes on return. Subtle bloop on glass tap and feeding.
 - 「♪ 聲音：開／關」 toggle next to 自動餵食 in the 狀態 panel (`S.sound`, default on, persisted).
 - Test: `python3 test_v7.py [url]`.
+
+## v8 (2026-11-14)
+- Water layer replaced: steady white-noise bed → bandpass 1.9 kHz / highpass 600 Hz (no LFO, no swell) + a babble of tiny sine droplets (800–3000 Hz, upward sweep, 12–45 ms) every 20–120 ms, scheduled 250 ms ahead. Bubble bloops unchanged.
+- Glass tap: knuckle knock (bandpassed noise click ~3 kHz + 1.55/2.33/2.98 kHz decaying partials, ~60 ms). Feeding: sprinkle (highpassed 3–8 kHz noise grains, ~0.45–0.75 s fade).
+- Samples: `python3 render_audio.py [url]` → shots/v8-water|knock|feed.wav (+ .m4a via ffmpeg) with spectrum/envelope stats.
+- UI: only a small 「≡」 button top-right; it shows/hides the bottom bar + tilt toggle (body.menu). Auto-collapse after 8 s idle unless 狀態 panel or 佈置 is open. Older tests pin the menu open via an init script (`window.__menuPin`).
+- Test: `python3 test_v8.py [url]`.

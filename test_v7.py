@@ -6,6 +6,7 @@ R = {}
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--autoplay-policy=user-gesture-required"])
     ctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
+    ctx.add_init_script("document.addEventListener('DOMContentLoaded',()=>{document.body.classList.add('menu');window.__menuPin=1})")  # v8: buttons live behind ≡; pin the menu open for older tests
     pg = ctx.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e))); pg.on("console", lambda m: m.type == "error" and errs.append(m.text))
     pg.goto(url); pg.wait_for_timeout(4000)
@@ -21,12 +22,15 @@ with sync_playwright() as p:
       const buf=new Float32Array(a.fftSize);let peak=0,sum=0,n=0;const t0=performance.now();
       (function k(){a.getFloatTimeDomainData(buf);for(const v of buf){peak=Math.max(peak,Math.abs(v));sum+=v*v;n++}
         if(performance.now()-t0<2500)setTimeout(k,40);else{s.master.disconnect(a);r({rms:+Math.sqrt(sum/n).toFixed(4),peak:+peak.toFixed(3)})}})()})"""
-    R["after_tap"] = pg.evaluate("()=>{const s=__tank.snd;return {state:s.ctx.state,master:+s.master.gain.value.toFixed(2),flowNodes:!!(s.flow&&s.flow.src&&s.flow.lp&&s.flow.g),lfo:!!s.lfo,bloopTimer:!!s.nextBloop}}")
+    R["after_tap"] = pg.evaluate("()=>{const s=__tank.snd;return {state:s.ctx.state,master:+s.master.gain.value.toFixed(2),flowNodes:!!(s.flow&&s.flow.src&&s.flow.bp&&s.flow.g),trickle:!!s.trickle,bloopTimer:!!s.nextBloop}}")
     R["level_on"] = pg.evaluate(meter)
     # bloop on knock / feed
+    pg.evaluate("()=>{window.__bq=0;const o=BaseAudioContext.prototype.createBiquadFilter;BaseAudioContext.prototype.createBiquadFilter=function(){window.__bq++;return o.apply(this,arguments)}}")
     pg.evaluate("()=>{__tank.snd.lastBloop=0}"); ctap(120, 500); pg.wait_for_timeout(100)
+    R["knock_sound_on_tap"] = pg.evaluate("()=>window.__bq") >= 1
     R["bloop_on_tap"] = pg.evaluate("()=>performance.now()-__tank.snd.lastBloop<600")
-    pg.evaluate("()=>{__tank.snd.lastBloop=0}"); pg.tap("#bFeed"); pg.wait_for_timeout(100)
+    pg.evaluate("()=>{__tank.snd.lastBloop=0;window.__bq=0}"); pg.tap("#bFeed"); pg.wait_for_timeout(100)
+    R["sprinkle_on_feed"] = pg.evaluate("()=>window.__bq") >= 2
     R["bloop_on_feed"] = pg.evaluate("()=>performance.now()-__tank.snd.lastBloop<600")
     R["feed_pellets"] = pg.evaluate("()=>__tank.food.length")
     # --- panel toggles ---
