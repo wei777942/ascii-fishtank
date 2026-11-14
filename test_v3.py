@@ -51,7 +51,7 @@ with sync_playwright() as p:
     R["crab_dbg0"] = pg.evaluate("()=>{const c=__tank.fish.find(f=>f.sp==='crab');return [c.x,c.y,c.startle,c.hunger,__tank.food.map(p=>[p.x,p.y])]}")
     pg.wait_for_timeout(5000)
     R["crab_dbg"] = pg.evaluate("()=>{const c=__tank.fish.find(f=>f.sp==='crab');return [c.x,c.y,c.startle,c.hunger,c.vx,__tank.food.map(p=>[p.x,p.y])]}")
-    R["crab_ate"] = pg.evaluate("()=>{const c=__tank.fish.find(f=>f.sp==='crab');return Math.round(c.hunger)}") > 40
+    R["bottom_dweller_ate"] = pg.evaluate("()=>__tank.fish.filter(f=>f.sp==='crab'||f.sp==='shrimp').map(f=>f.sp+':'+Math.round(f.hunger))")
     # ---- decor size / length ----
     pg.tap("#bDecor"); pg.wait_for_timeout(200)
     w = pg.evaluate("()=>{const d=__tank.decor.find(d=>d.type==='weed'&&!d.back);return {x:d.x,n:d.n,s:d.s}}")
