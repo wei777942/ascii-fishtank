@@ -96,7 +96,10 @@ with sync_playwright() as p:
     R["cap_respected"] = pg.evaluate("()=>__tank.fish.length")
     pg.wait_for_timeout(1500)
     # select the betta by tapping it, remove
-    bt = pg.evaluate("()=>{const f=__tank.fish.find(f=>f.sp==='betta');return [f.x,f.y]}")
+    for _ in range(60):   # wait until the betta swims below the edit toolbar (it likes the upper water)
+        bt = pg.evaluate("()=>{const f=__tank.fish.find(f=>f.sp==='betta');const eb=document.getElementById('ebar').getBoundingClientRect().bottom;return [f.x,f.y,f.y>eb+30&&f.x>30&&f.x<360]}")
+        if bt[2]: break
+        pg.wait_for_timeout(200)
     ctap(bt[0], bt[1])
     R["betta_selected"] = pg.evaluate("()=>__tank.edit.selF&&__tank.edit.selF.sp")
     pg.wait_for_timeout(300)

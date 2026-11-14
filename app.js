@@ -14,17 +14,27 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const MONO = 'ui-monospace, Menlo, "SF Mono", "DejaVu Sans Mono", monospace';
 
 const SPECIES = {
-  // strs/cols per growth stage: 幼魚 / 少年 / 成魚
-  clown:  { label: '小丑魚',   strs: ['><(o>', '><((o>', '><(((o>'], cols: ['#a9cfd2', '#39f6ff', '#ff9a3c'], size: 1.0,  max: 70,  acc: 1.6, wf: 7 },
-  neon:   { label: '霓虹燈魚', kind: 'school', strs: ['><>', '><>', '>><>'], cols: ['#a6d8bb', '#46ff8c', '#4fa8ff'], size: 0.85, max: 115, acc: 2.6, wf: 12 },
-  puffer: { label: '河豚',     strs: ['><o>', '><(O)>', '><((O))>'], puffs: ['><@>', '><{@}>', '><{{@}}>'],
-            cols: ['#d4ddb2', '#c8ff5a', '#ffd23f'], size: 1.05, max: 36, acc: 1.0, wf: 5 },
-  shrimp: { label: '蝦子', kind: 'shrimp', strs: ['}~°', '}~~°~', '}~~~°~~'], cols: ['#e2c6c6', '#ff8fa8', '#ff5a6e'], size: 0.85, max: 28, acc: 2.5, wf: 9 },
-  crab:   { label: '螃蟹', kind: 'crab', strs: ['v(;;)v', '(\\/)(;;)(\\/)', '(\\/)(;,,;)(\\/)'], cols: ['#e8cca8', '#ffa25a', '#ff4f3a'], size: 0.8, max: 34, acc: 3, wf: 6 },
-  minnow: { label: '群魚', kind: 'school', strs: ['<>', '>°>', '>=°>'], cols: ['#b9c9d2', '#d9f2ff', '#ffffff'], size: 0.7, max: 120, acc: 2.8, wf: 13 },
-  turtle: { label: '烏龜', kind: 'turtle', strs: ['-(@)o', '-(@@)o', '~{@@@}O'], cols: ['#bcd9a2', '#7fe07a', '#2fd6a0'], size: 1.05, max: 24, acc: 0.8, wf: 3 },
-  angel:  { label: '神仙魚', strs: ['>|°>', [' /', '>|°>', ' \\'], ['  /\\', '><|°>', '  \\/']], cols: ['#d2d2ea', '#c8b8ff', '#b48cff'], size: 1.0, max: 42, acc: 1.2, wf: 5, maxAng: 0.18 },
-  betta:  { label: '鬥魚', strs: ['{<°>', '{{(°>', '~{{((°>'], cols: ['#e2bccb', '#ff6ad0', '#ff2d8a'], size: 1.0, max: 48, acc: 1.4, wf: 6, fin: 2.2 },
+  // strs/cols per growth stage: 幼魚 / 少年 / 成魚. A stage may be an array of lines (columns line up).
+  // ac = per-character accent colours (stripes, spots, shell, fins). sy = body height. bob = vertical hover.
+  clown:  { label: '小丑魚', strs: ['>|o>', '><|(|°>', '><|((|(|°>'], cols: ['#ffc49a', '#ff9a3c', '#ff7417'],
+            ac: { '|': '#ffffff' }, size: 1.0, max: 70, acc: 1.6, wf: 7 },
+  neon:   { label: '霓虹燈魚', kind: 'school', strs: ['-=°', '>-==°', '>--===°'], cols: ['#a8ecff', '#4ee6ff', '#1fc8ff'],
+            ac: { '=': '#ff3d6e' }, sy: 0.8, size: 0.85, max: 115, acc: 2.6, wf: 12, burst: true },
+  puffer: { label: '河豚', strs: ['<(°)', ['  .-.', '<(: °)', "  '-'"], ['  .--.', '<( :: °)', "  '--'"]],
+            puffs: ['<{°}', ['  \\|/', '<{: °}', '  /|\\'], ['  \\||/', '<{ :: °}', '  /||\\']],
+            cols: ['#fff0a8', '#ffe04a', '#ffc81a'], ac: { ':': '#d08a10', '*': '#ff9a3c' }, sy: 1.1, size: 1.05, max: 36, acc: 1.0, wf: 5, bob: 1.6, maxAng: 0.2 },
+  shrimp: { label: '蝦子', kind: 'shrimp', strs: [['}~°', " '"], ['}~~~°=', " '''"], ['}~~~~°==', "  ''''"]], cols: ['#ffc8d2', '#ff8fa8', '#ff4d6a'],
+            ac: { "'": '#ffd6de', '=': '#ffd6de' }, size: 0.85, max: 28, acc: 2.5, wf: 9 },
+  crab:   { label: '螃蟹', kind: 'crab', strs: ['v(;;)v', '(\\/)(;;)(\\/)', '(\\/)(;,,;)(\\/)'], cols: ['#ffb592', '#ff7a4a', '#ff3b2f'],
+            ac: { '\\': '#ffd0a0', '/': '#ffd0a0', 'v': '#ffd0a0' }, size: 0.8, max: 34, acc: 3, wf: 6 },
+  minnow: { label: '群魚', kind: 'school', strs: ['<>', '>°>', '>-°>'], cols: ['#dfe9f0', '#eef7ff', '#ffffff'],
+            ac: { '-': '#7fd0ff' }, sy: 0.85, size: 0.7, max: 120, acc: 2.8, wf: 13 },
+  turtle: { label: '烏龜', kind: 'turtle', strs: [['  _', '-(@)o'], ['  __', '-(@@@)o', "  ' '"], ['  ____', '~{@@@@}O', "  '  '"]], cols: ['#a8f0b8', '#5fe08a', '#28c070'],
+            ac: { '@': '#d8b060', '_': '#d8b060' }, size: 1.05, max: 24, acc: 0.8, wf: 3, bob: 0.7, maxAng: 0.3 },
+  angel:  { label: '神仙魚', strs: [[' /', '>|°>', ' \\'], ['   /', '><(|°>', '   \\'], ['    /', '   /|', '><(| °>', '   \\|', '    \\']], cols: ['#e2d4ff', '#c0a0ff', '#9a66ff'],
+            ac: { '|': '#ffe066' }, size: 1.0, max: 42, acc: 0.9, wf: 4, maxAng: 0.18 },
+  betta:  { label: '鬥魚', strs: [['~', '~{°>', '~'], ['~~', '~~{((°>', '~~'], ['~~~.', '~~~{(((°>', "~~~'"]], cols: ['#ffb3e2', '#ff5ad0', '#ff1f8f'],
+            ac: { '~': '#a070ff', '.': '#a070ff', "'": '#a070ff' }, size: 1.0, max: 48, acc: 1.4, wf: 6, fin: 2.4 },
 };
 const kindOf = sp => SPECIES[sp].kind || 'swim';
 const isBottom = f => { const k = kindOf(f.sp); return k === 'crab' || k === 'shrimp'; };
@@ -53,18 +63,6 @@ function look(f) {
     color: f.sick ? '#7fa58a' : stageColor(f.sp, f.growth || 0) };
 }
 const ROSTER = [['clown', '阿青'], ['clown', '小藍'], ['neon', '綠豆'], ['neon', '薄荷'], ['neon', '芽芽'], ['puffer', '泡泡']];
-// pixel-art sprites (right-facing). a=body b=accent e=eye s=spike
-const SPR = {   // [幼魚, 少年, 成魚]
-  clown: [['..aaa..', 'a.aaaa.', 'aaabaea', 'a.aaaa.', '..aaa..'],
-          ['...aaaa....', 'a.aaaaaaa..', 'aaaabaaaaea', 'aaaabaaaaaa', 'a.aaaaaaa..', '...aaaa....'],
-          ['....aaaaa....', 'a..aaaaaaaa..', 'aa.abaabaaaa.', 'aaaabaabaaaea', 'aa.abaabaaaa.', 'a..aaaaaaaa..', '....aaaaa....']],
-  neon: [['a.aa.', 'abbae'], ['a.aaa..', 'aabbbae', 'a.aaa..'], ['a..aaa...', 'aa.aaaaa.', 'aabbbbbae', 'aa.aaaaa.', 'a..aaa...']],
-  puffer: [['.aaa..', 'aaaaea', 'aaaaaa', '.aaa..'],
-           ['...aaaa..', '..aaaaaa.', 'aaaaaaaea', 'aaaaaaaaa', '..aaaaaa.', '...aaaa..'],
-           ['....aaaa...', '..aaaaaaaa.', '.aaaaaaaaa.', 'aaaaaaaaaea', 'aaaaaaaaaaa', '.aaaaaaaaa.', '..aaaaaaaa.', '....aaaa...']],
-  pufferBig: ['...s.s.s...', '..aaaaaaa..', '.saaaaaaas.', 'aaaaaaaaaea', 'aaaaaaaaaaa', '.saaaaaaas.', '..aaaaaaa..', '...s.s.s...'],
-};
-
 const ROCKS = [          // ASCII rocks, bottom-aligned on the sand
   [' ^ ', '(_)'],
   ['  /\\  ', ' /  \\_', '(_____)'],
@@ -72,20 +70,36 @@ const ROCKS = [          // ASCII rocks, bottom-aligned on the sand
 ];
 const ROCKPX = [['.a.', 'aaa'], ['..a...', '.aab..', 'aaaaa.', 'aaaaaa'], ['.aa....', 'aabaa..', 'aaaaaaa']];
 
+// pixel-art sprites (right-facing). a=body (stage colour) b=accent e=eye s=spike/legs
+const BABY_PX = {
+  clown: ['.aaa..', 'abaaa.', 'abaaea', '.aaa..'],
+  neon: ['aaaae', '.bbb.'],
+  puffer: ['.aaa.', 'aaaea', 'aabaa', '.aaa.'],
+  shrimp: ['....b.', 'aaaaea', '.s.s..'],
+  crab: ['b.e.e.b', 'baaaaab', '.a.a.a.'],
+  minnow: ['.ae', 'aa.'],
+  turtle: ['..bbb..', '.bbbbaa', 'abbbbae', '.a...a.'],
+  angel: ['.a..', '.ba.', 'aabe', '.ba.', '.a..'],
+  betta: ['bb.aa..', 'bbbaaae', 'bbbaaa.', 'bb.....'],
+};
+const ADULT_PX = {
+  clown: ['....aaaaa....', 'a..aabaabaa..', 'aa.aabaabaaa.', 'aaaaabaabaaea', 'aa.aabaabaaa.', 'a..aabaabaa..', '....aaaaa....'],
+  neon: ['a.aaaaaa..', 'aaaaaaaaae', 'a.bbbbbb..'],
+  puffer: ['...aaaa...', '.aaaaaaaa.', 'aaabaabaea', 'aaaaaaaaaa', 'aabaabaaaa', '.aaaaaaaa.', '...aaaa...'],
+  shrimp: ['.........bb.', '.aaaaaaa...b', 'aaaaaaaaaea.', 'a.aaaaaaa...', '...s.s.s.s..'],
+  crab: ['b.b.e.e.b.b', 'bb.aaaaa.bb', '.aaaaaaaaa.', '..a.a.a.a..'],
+  minnow: ['a.aaa.', 'aaaabe', 'a.aaa.'],
+  turtle: ['....bbbb....', '..bbbbbbbb..', '.bbbbbbbbbaa', 'a.bbbbbbbbae', '.a.a....a.a.'],
+  angel: ['....a....', '...aa....', '..aba....', '.aabaa...', 'aaabaaae.', 'aaabaaaaa', '.aabaa...', '..aba....', '...aa....', '....a....'],
+  betta: ['bbb...........', 'bbbb..aaaa....', 'bbbbbaaaaaaa..', 'bbbbbbaaaaaaea', 'bbbbbaaaaaaaa.', 'bbbb..aaaa....', 'bbb...........'],
+};
 function shrink(rows, k) {
   const h = rows.length, w = rows[0].length, H2 = Math.max(2, Math.round(h * k)), W2 = Math.max(2, Math.round(w * k)), out = [];
   for (let r = 0; r < H2; r++) { let line = ''; for (let c = 0; c < W2; c++) line += rows[Math.min(h - 1, Math.floor(r / k))][Math.min(w - 1, Math.floor(c / k))]; out.push(line); }
   return out;
 }
-const ADULT_PX = {
-  shrimp: ['.......bb.', '.aaaaaa..b', 'aaaaaaaae.', 'a.aaaaaa..', '..s.s.s...'],
-  crab: ['b.b.e.e.b.b', 'bb.aaaaa.bb', '.aaaaaaaaa.', '..a.a.a.a..'],
-  minnow: ['a..aa..', 'aaaaabe', 'a..aa..'],
-  turtle: ['....bbbb....', '..bbabbabb..', '.bbbbbbbbbaa', 'a.bbbbbbbbae', '.a.a....a.a.'],
-  angel: ['..a....', '..aa...', '.aaaa..', 'aabaaae', '.aaaa..', '..aa...', '..a....'],
-  betta: ['bb..aaa....', 'bbbaaaaaa..', 'bbbbaaaaaea', 'bbbbaaaaaaa', 'bbbaaaaaa..', 'bb.........'],
-};
-for (const k in ADULT_PX) SPR[k] = [shrink(ADULT_PX[k], 0.55), shrink(ADULT_PX[k], 0.78), ADULT_PX[k]];
+const SPR = { pufferBig: ['...s.s.s...', '..aaaaaaa..', '.saaaaaaas.', 'aaaaaaaaaea', 'aaaaaaaaaaa', '.saaaaaaas.', '..aaaaaaa..', '...s.s.s...'] };
+for (const k in ADULT_PX) SPR[k] = [BABY_PX[k], shrink(ADULT_PX[k], 0.75), ADULT_PX[k]];   // [幼魚, 少年, 成魚]
 
 // ---------- state ----------
 let S = load();
@@ -204,7 +218,7 @@ function makeFish(p, i, pour) {
     x: fromTop ? rnd(W * 0.3, W * 0.7) : fromLeft ? -60 - i * 30 : W + 60 + i * 30,
     y: fromTop ? surfaceY - 30 - (pour ? rnd(0, 40) : rnd(0, 20)) : rnd(H * 0.2, H * 0.6), grp: p.grp || 0, mode: 'walk', surfT: rnd(20, 60), surfacing: 0,
     vx: 0, vy: 0, face: fromLeft ? 1 : -1, flip: fromLeft ? 1 : -1, ang: 0, ph: rnd(0, 6), startle: 0, fx: 0, fy: 0,
-    puff: 0, wt: 0, tx: 0, ty: 0, pause: 0, bubT: rnd(1, 4), enter: true };
+    puff: 0, wt: 0, tx: 0, ty: 0, pause: 0, bubT: rnd(1, 4), enter: true, seed: rnd(0, 6.28) };
   f.tx = rnd(W * 0.2, W * 0.8); f.ty = rnd(bounds.t + 20, bounds.b - 20);
   if (f.sp === 'puffer') f.ty = rnd((bounds.t + bounds.b) / 2, bounds.b - 10);
   f.vx = f.face * SPECIES[f.sp].max * 1.2;
@@ -343,6 +357,7 @@ function updateFish(f, dt, schools) {
   }
   const d = Math.hypot(dx, dy) || 1;
   if (arrive) want *= clamp(d / 80, 0.25, 1);
+  if (sp.burst && f.startle <= 0 && !f.enter) want *= 0.5 + 1.0 * Math.max(0, Math.sin(t * 2.4 + f.seed));   // neon: dart, coast, dart
   if (f.held) want = 0;
   const k = Math.min(1, sp.acc * dt * (f.startle > 0 ? 3 : 1));
   f.vx += (dx / d * want - f.vx) * k;
@@ -424,8 +439,15 @@ function changeWater() {
 }
 
 // ---------- motion ----------
-function onOrient(e) { if (e.gamma != null) { tilt.raw = clamp(e.gamma / 40, -1, 1); motionOn = true; } }
+// tilt toggle: S.tiltOn = user preference (persisted); motionReady = sensor permission granted this session
+const tiltAvailable = typeof DeviceMotionEvent !== 'undefined' || typeof DeviceOrientationEvent !== 'undefined';
+let motionReady = false, listening = false;
+function sensorLive() { if (!motionReady) { motionReady = true; tiltLabel(); } }   // events arriving = permission is active
+function onOrient(e) { if (!S.tiltOn) return; if (e.gamma != null) { tilt.raw = clamp(e.gamma / 40, -1, 1); motionOn = true; sensorLive(); } }
 function onMotion(e) {
+  if (!S.tiltOn) return;
+  const gr = e.accelerationIncludingGravity;
+  if (gr && gr.x != null) sensorLive();      // ignore empty events some browsers send without sensors
   const a = e.acceleration;
   if (a && a.x != null) { const m = Math.hypot(a.x, a.y || 0); if (m > 7) { slosh.v += clamp(a.x, -15, 15) * 0.004; } }
   if (!motionOn && e.accelerationIncludingGravity && e.accelerationIncludingGravity.x != null) {
@@ -434,20 +456,39 @@ function onMotion(e) {
   }
 }
 function listenMotion() {
+  if (listening) return; listening = true;
   window.addEventListener('deviceorientation', onOrient);
   window.addEventListener('devicemotion', onMotion);
 }
+function tiltLabel() {
+  const b = $('bTilt'); if (!b) return;
+  const pending = S.tiltOn && needsPerm && !motionReady;
+  b.textContent = pending ? '📱 傾斜：點此啟用' : S.tiltOn ? '📱 傾斜：開' : '📱 傾斜：關';
+  b.classList.toggle('on', S.tiltOn && !pending);
+}
+function setTilt(on) {
+  S.tiltOn = on;
+  if (!on) { tilt.raw = 0; motionOn = false; }       // water and fish ease back to level via the existing smoothing
+  save(); tiltLabel();
+}
+function tiltButton() {
+  if (S.tiltOn && (motionReady || !needsPerm)) { setTilt(false); toast('傾斜已關閉，水面會慢慢回平', 1.8); return; }
+  if (needsPerm && !motionReady) { askMotion(true); return; }
+  listenMotion(); setTilt(true); toast('傾斜已開啟', 1.4);
+}
 const needsPerm = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
 let permAsked = false;
-function askMotion() {
+function askMotion(fromButton) {
   if (!needsPerm || permAsked) return; permAsked = true;
   DeviceMotionEvent.requestPermission().then(r => {
+    permAsked = false;
     if (r === 'granted') {
-      S.motion = true; $('bTilt').style.display = 'none'; listenMotion();
+      S.motion = true; motionReady = true; listenMotion();
       if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) DeviceOrientationEvent.requestPermission().catch(() => {});
-      toast('傾斜手機，水會晃喔');
-    } else { toast('沒有開啟傾斜（可在設定重開）'); permAsked = false; }
-  }).catch(() => { permAsked = false; });
+      setTilt(true);
+      if (fromButton) toast('傾斜已開啟，傾斜手機水會晃喔');
+    } else { if (fromButton) toast('沒有取得傾斜權限（可在 Safari 設定重開）'); tiltLabel(); }
+  }).catch(() => { permAsked = false; tiltLabel(); });
 }
 
 // ---------- input ----------
@@ -455,7 +496,7 @@ let press = null;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (edit) { editDown(e); return; }
-  if (needsPerm && S.motion && !permAsked) askMotion();   // re-grant silently on first touch
+  if (needsPerm && S.tiltOn && !motionReady && !permAsked) askMotion(false);   // re-grant on first touch if it was on
   if (press) clearTimeout(press.timer);
   const p = { x: e.clientX, y: e.clientY, done: false, moved: false };
   p.timer = setTimeout(() => { if (!p.done && !p.moved) { p.done = true; dropFood(p.x, 3); } }, 450);
@@ -481,7 +522,7 @@ btn('bWater', () => { changeWater(); });
 btn('bInfo', () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; renderPanel(); });
 $('panel').addEventListener('click', () => { $('panel').style.display = 'none'; });
 btn('bStyle', () => { S.style = S.style === 'ascii' ? 'pixel' : 'ascii'; styleLabel(); save(); });
-btn('bTilt', askMotion);
+btn('bTilt', tiltButton);
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
 
 // ---------- edit mode: 裝飾 (decor) + 生物 (creatures) ----------
@@ -657,9 +698,9 @@ function setTab(tab) {
 function enterEdit() {
   edit = { hintY: () => Math.max($('ebar').getBoundingClientRect().bottom + fs * 1.1, placeTop() - fs * 2.6), tab: 'decor', type: 'weed', rv: -1, drag: null, tap: null, tapF: null, hot: false, sel: null, selF: null, pts: new Map(), pinch: null };
   setEditType('weed'); setTab('decor'); $('panel').style.display = 'none';
-  document.body.classList.add('editing'); $('bar').style.display = 'none'; $('ebar').style.display = 'flex'; $('bTilt').dataset.hide = $('bTilt').style.display; $('bTilt').style.display = 'none';
+  document.body.classList.add('editing'); $('bar').style.display = 'none'; $('ebar').style.display = 'flex'; $('bTilt').style.display = 'none';
 }
-function exitEdit() { for (const f of fish) f.held = false; edit = null; save(); document.body.classList.remove('editing'); $('eSel').style.display = 'none'; $('ebar').style.display = 'none'; $('bar').style.display = 'flex'; if ($('bTilt').dataset.hide && !S.motion) $('bTilt').style.display = $('bTilt').dataset.hide; toast('佈置好了', 1.4); }
+function exitEdit() { for (const f of fish) f.held = false; edit = null; save(); document.body.classList.remove('editing'); $('eSel').style.display = 'none'; $('ebar').style.display = 'none'; $('bar').style.display = 'flex'; $('bTilt').style.display = tiltAvailable ? 'block' : 'none'; toast('佈置好了', 1.4); }
 $('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}">＋${SPECIES[k].label}</button>`).join('');
 btn('bDecor', enterEdit);
 btn('eWeed', () => setEditType('weed'));
@@ -728,7 +769,7 @@ function update(dt) {
     g.wt -= dt;
     if (g.wt <= 0 || Math.hypot(g.x - c.x, g.y - c.y) < 40) { g.x = rnd(bounds.l, bounds.r); g.y = rnd(bounds.t, bounds.b - 40); g.wt = rnd(2.5, 6); }
   }
-  for (const f of fish) {
+  if (!window.__freezeFish) for (const f of fish) {
     updateFish(f, dt, schools);
     const st = stageOf(f.growth || 0);
     if (st > f.lastStage) { toast(`${f.name}長成${STAGE_NAMES[st]}了！`, 3); for (let k = 0; k < 6; k++) crumbs.push({ x: f.x + rnd(-20, 20), y: f.y + rnd(-12, 12), t: 0, ch: '*' }); }
@@ -859,9 +900,9 @@ function drawFishA(f) {
   const str = L.str, s = L.scale, col = L.color;
   const thin = f.sick ? 0.6 : f.hunger < 30 ? 0.62 + 0.38 * f.hunger / 30 : 1;
   ctx.save();
-  ctx.translate(f.x, f.y);
+  ctx.translate(f.x, f.y + (sp.bob ? Math.sin(t * sp.bob + f.seed) * fs * 0.12 : 0));
   ctx.rotate(f.ang * Math.sign(f.flip || 1));
-  ctx.scale(f.flip * s, thin * s);
+  ctx.scale(f.flip * s, thin * s * (sp.sy || 1));
   glow(col, f.sick ? 4 : 7 + 5 * (f.growth || 0));
   if (L.st === 0 && !f.sick) ctx.globalAlpha = 0.85;
   if (f.hunger < 30 && !f.sick) ctx.globalAlpha = 0.75;
@@ -874,7 +915,10 @@ function drawFishA(f) {
       if (line[i] === ' ') continue;
       const tail = Math.pow(1 - i / n, 1.4);
       const wy = crab ? Math.sin(f.ph * 2 + i * Math.PI) * fs * 0.05 * Math.min(1, Math.abs(f.vx) / 8 + 0.2) : Math.sin(f.ph - i * 0.8) * amp * tail;
+      const ac = sp.ac && !f.sick && sp.ac[line[i]];
+      if (ac) { ctx.fillStyle = ac; ctx.shadowColor = ac; }
       ctx.fillText(line[i], -w / 2 + (i + 0.5) * charW, ly + wy);
+      if (ac) { ctx.fillStyle = col; ctx.shadowColor = col; }
     }
   }
   ctx.restore();
@@ -922,8 +966,8 @@ function drawRipples() {
 }
 
 // ---------- render: pixel art ----------
-const PCOL = { clown: { a: '#39f6ff', b: '#e8ffff' }, neon: { a: '#46ff8c', b: '#39f6ff' }, puffer: { a: '#c8ff5a', s: '#46ff8c' },
-  shrimp: { b: '#ffd0d8', s: '#ff8fa8' }, crab: { b: '#ffd0a0' }, minnow: { b: '#9ffcff' }, turtle: { b: '#a8e070' }, angel: { b: '#ffffff' }, betta: { b: '#ff9ae0' } };
+const PCOL = { clown: { b: '#ffffff' }, neon: { b: '#ff3d6e' }, puffer: { b: '#c07a10', s: '#ff9a3c' }, shrimp: { b: '#ffd6de', s: '#ff8fa8' }, crab: { b: '#ffd0a0' },
+  minnow: { b: '#7fd0ff' }, turtle: { b: '#d8b060' }, angel: { b: '#ffe066' }, betta: { b: '#a070ff' } };
 function sprite(rows, cx, cy, mirror, cols, thin, k = 1) {
   const h = rows.length, w = rows[0].length;
   const ox = Math.round(cx - w * k / 2), oy = Math.round(cy - h * k / 2);
@@ -1048,8 +1092,14 @@ function boot() {
   if (away > 0) care(Math.min(away, 86400 * 30), list);
   fish = list.map(makeFish);
   styleLabel();
-  if (needsPerm && !S.motion) $('bTilt').style.display = 'block';
-  if (!needsPerm && typeof DeviceMotionEvent !== 'undefined') listenMotion();
+  if (typeof S.tiltOn !== 'boolean') S.tiltOn = needsPerm ? !!S.motion : true;   // migrate: v1-v3 had no off switch
+  if (tiltAvailable) $('bTilt').style.display = 'block';
+  if (!needsPerm && tiltAvailable) { listenMotion(); motionReady = true; }
+  else if (needsPerm && S.tiltOn) {           // iOS: works without a tap only if permission is still granted
+    listenMotion();
+    try { DeviceMotionEvent.requestPermission().then(r => { if (r === 'granted') { motionReady = true; tiltLabel(); } }).catch(() => {}); } catch (e) {}
+  }
+  tiltLabel();
   lastWall = Date.now();
   if (away > 3600) setTimeout(() => offlineToast(away), 3200);
   else if (S.newFriends) setTimeout(() => toast('新朋友來了：蝦子、螃蟹、群魚、烏龜、神仙魚、鬥魚（佈置 → 生物 可增減）', 5), 3000);
@@ -1065,6 +1115,6 @@ window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();
