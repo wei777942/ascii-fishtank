@@ -792,7 +792,7 @@ function menuIdleCheck() {
 document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
 // ---------- v10: phone food can — WebRTC (PeerJS, bundled) + client-side QR ----------
 const ROOM_PREFIX = 'asciifishtank-';
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }] };   // PeerJS's free STUN/TURN, plus TURN over TCP for networks that block UDP
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:us-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }], iceCandidatePoolSize: 2 };   // v11: one fast STUN + one TURN relay (UDP+TCP); fewer servers = faster ICE
 const remote = { peer: null, conns: new Set(), room: null, status: 'off', loading: null, tries: 0, lastFeed: 0, lastKnock: 0, everConnected: false };
 function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error(src)); document.head.appendChild(el); }); }
 function newRoom() {
@@ -848,7 +848,7 @@ $('canPanel').addEventListener('click', e => {
 function startRemote() {
   if (remote.loading) return remote.loading;
   remoteStatus('connecting');
-  remote.loading = Promise.all([window.Peer ? 0 : loadScript('lib/peerjs.min.js?v=10'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=10')])
+  remote.loading = Promise.all([window.Peer ? 0 : loadScript('lib/peerjs.min.js?v=11'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=11')])
     .then(() => { remote.loading = null; drawQR(); openPeer(); })
     .catch(() => { remote.loading = null; remoteStatus('error'); });
   return remote.loading;
@@ -858,7 +858,7 @@ function openPeer() {
   remoteStatus('connecting');
   const p = new Peer(ROOM_PREFIX + remote.room, { debug: 0, config: ICE });
   remote.peer = p;
-  p.on('open', () => { remote.tries = 0; remoteStatus('waiting'); });
+  p.on('open', () => { remote.tries = 0; remote.netFails = 0; remoteStatus('waiting'); });
   p.on('connection', c => {
     c.on('open', () => {
       remote.conns.add(c); remoteStatus(); sendState(c);
@@ -875,10 +875,11 @@ function openPeer() {
     if (t === 'unavailable-id') {                 // old registration still alive (e.g. tank tab reloaded): retry, then pick a new room
       p.destroy(); remote.tries++;
       if (remote.tries > 6) { remote.room = newRoom(); remote.tries = 0; if ($('canPanel').style.display === 'block') renderCanPanel(); }
-      setTimeout(openPeer, 2500);
+      setTimeout(openPeer, 1500);
     } else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') {
-      remoteStatus('retry');
-      setTimeout(() => { if (p.destroyed) openPeer(); else if (p.disconnected) try { p.reconnect(); } catch (e) {} }, 3000);
+      remoteStatus('retry'); remote.netFails = (remote.netFails || 0) + 1;
+      const wait = Math.min(60000, 1500 * Math.pow(2, Math.min(5, remote.netFails - 1)));   // 1.5 s, 3 s, 6 s … 48 s
+      setTimeout(() => { if (p.destroyed) openPeer(); else if (p.disconnected) try { p.reconnect(); } catch (e) {} }, wait);
     }
   });
 }
@@ -900,6 +901,13 @@ function onRemote(d, c) {
   sendState(c);
 }
 setInterval(() => { for (const c of openConns()) sendState(c); }, 5000);
+// v11: get the room ready in the background shortly after load (QR still only appears from ≡ → 手機飼料罐)
+function preloadRemote() {
+  if (remote.peer || remote.loading) return;
+  remote.room = remote.room || roomId();
+  startRemote();
+}
+(window.requestIdleCallback ? cb => requestIdleCallback(cb, { timeout: 2500 }) : cb => setTimeout(cb, 1200))(() => setTimeout(preloadRemote, 300));
 btn('bCan', () => { if (canPanelOpen()) closeCanPanel(); else openCanPanel(); });   // tap again to close
 btn('bMenu', () => {                       // ≡ closes the dropdown and the 狀態 panel together
   const open = document.body.classList.contains('menu');

@@ -65,3 +65,9 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - `?can=` on index.html redirects to can.html before app.js loads, so the can never reads/writes the tank save. can.js: shake (devicemotion spike) / tip forward (beta < -12°) / 撒飼料 → feed n=1–5 (rate-limited 450 ms); left/right tilt maps pellet x; 敲玻璃; 換水.
 - sw.js caches can.html, can.js and lib/*; cross-origin (broker, WebRTC) is never intercepted.
 - Test: `python3 test_v10.py [url]` — real broker signaling; the data channel is bridged by the test because this box's Chrome policy forbids non-proxied UDP WebRTC (BRIDGE=0 to try a real channel).
+
+## v11 (2026-11-19) — faster phone connection
+- Tank registers its room on the PeerJS broker in the background ~1–3 s after load (idle callback); QR still only from ≡ → 手機飼料罐. Network errors back off 1.5 s → 48 s.
+- ICE trimmed to 1 STUN (Google) + 1 TURN (us-0 UDP+TCP), iceCandidatePoolSize 2.
+- Can: connects on load (before 「點一下開始」), shows progress (1/3, 2/3) with elapsed seconds and the final connect time; faster retries (peer-unavailable 1.2 s, stuck ICE redial after 7 s).
+- Timing: `python3 timing_can.py [url] [runs]`.

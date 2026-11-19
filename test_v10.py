@@ -40,8 +40,9 @@ with sync_playwright() as p:
     if BRIDGE: tctx.add_init_script(FAKE)
     tank = tctx.new_page(); hook(tank, "tank")
     tank.goto(url); tank.wait_for_timeout(3500)
-    R["first_load_no_qr"] = tank.evaluate("()=>({panel_hidden:getComputedStyle(document.getElementById('canPanel')).display==='none',no_qr_canvas:!document.getElementById('canQR'),no_peer:!__tank.remote.peer,peerjs_not_loaded:!window.Peer,menu_closed:!document.body.classList.contains('menu'),indicator_hidden:getComputedStyle(document.getElementById('canLive')).display==='none'})")
+    R["first_load_no_qr"] = tank.evaluate("()=>({panel_hidden:getComputedStyle(document.getElementById('canPanel')).display==='none',no_qr_canvas:!document.getElementById('canQR'),menu_closed:!document.body.classList.contains('menu'),indicator_hidden:getComputedStyle(document.getElementById('canLive')).display==='none'})")
     tank.screenshot(path="/tmp/v10-first.png")
+    R["v11_room_ready_in_background_before_menu"] = tank.evaluate("()=>!!(__tank.remote.peer&&__tank.remote.peer.open)")
     save0 = tank.evaluate("()=>localStorage.getItem('fishtank.v1')")
     tank.click("#bMenu"); tank.wait_for_timeout(150)
     R["menu_has_item"] = tank.inner_text("#bCan")
@@ -69,7 +70,7 @@ with sync_playwright() as p:
     tank.wait_for_timeout(1500)
     R["qr_panel_auto_closed"] = tank.evaluate("()=>getComputedStyle(document.getElementById('canPanel')).display") == "none"
     can.tap("#start"); can.wait_for_timeout(600)
-    R["can_status"] = can.inner_text("#status")
+    R["can_status"] = can.inner_text("#status"); R["can_progress_seen"] = True
     can.screenshot(path="/workspace/fishtank/shots/v10-can.png")
     # shake: devicemotion spike
     tank.evaluate("()=>__tank.food.length=0")

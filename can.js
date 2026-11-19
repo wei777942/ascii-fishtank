@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const PREFIX = 'asciifishtank-';
-  const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }] };
+  const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:us-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }], iceCandidatePoolSize: 2 };
   const room = (new URLSearchParams(location.search).get('can') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
   const CAN = [
     '<span class="lid">  .------.  </span>',
@@ -19,33 +19,40 @@
 
   // ---------- connection ----------
   function retry(ms = 2500) { clearTimeout(retryT); retryT = setTimeout(connect, ms); }
+  let t0 = performance.now(), tick = 0, phase = '';
+  function progress(ph) {                     // v11: visible progress with elapsed seconds
+    phase = ph; clearInterval(tick);
+    const show = () => status(`${ph}　${((performance.now() - t0) / 1000).toFixed(1)} 秒`);
+    show(); tick = setInterval(() => { if (!ready) show(); else clearInterval(tick); }, 250);
+  }
   function connect() {
     if (!room) { status('沒有房間碼，請重新掃描魚缸上的 QR', 'bad'); return; }
     if (!window.Peer) { status('無法載入連線元件，請檢查網路', 'bad'); return; }
     if (!peer || peer.destroyed) {
+      progress('連線伺服器中…（1/3）');
       peer = new Peer({ debug: 0, config: ICE });
       peer.on('open', dial);
       peer.on('disconnected', () => { if (!peer.destroyed) setTimeout(() => { if (peer && !peer.destroyed && peer.disconnected) try { peer.reconnect(); } catch (e) {} }, 1500); });
       peer.on('error', e => {
         const t = e && e.type;
-        if (t === 'peer-unavailable') { ready = false; status('找不到魚缸，請確認電腦上的魚缸頁面開著…', 'bad'); retry(3000); }
-        else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') { ready = false; status('網路中斷，重新連線中…', 'bad'); retry(3000); }
+        if (t === 'peer-unavailable') { ready = false; clearInterval(tick); status('找不到魚缸，請確認電腦上的魚缸頁面開著…', 'bad'); retry(1200); }
+        else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') { ready = false; clearInterval(tick); status('網路中斷，重新連線中…', 'bad'); retry(2000); }
       });
     } else if (peer.open) dial();
     else if (peer.disconnected) try { peer.reconnect(); } catch (e) {}
   }
   function dial() {
-    status('連線魚缸中…');
+    progress('尋找魚缸、建立連線中…（2/3）');
     const c = peer.connect(PREFIX + room, { reliable: true });
     conn = c;
-    c.on('open', () => { if (conn !== c) return; ready = true; status('已連線 ✓', 'ok'); c.send({ t: 'hello' }); });
+    c.on('open', () => { if (conn !== c) return; ready = true; clearInterval(tick); window.__connectMs = Math.round(performance.now() - t0); status(`已連線 ✓（${(window.__connectMs / 1000).toFixed(1)} 秒）`, 'ok'); c.send({ t: 'hello' }); });
     c.on('data', d => {
       if (conn !== c || !d || d.t !== 'state') return;
       status(`已連線 ✓　魚 ${d.n} 隻・飽足 ${d.hunger}%・水質 ${d.clean}%`, 'ok');
     });
-    const lost = () => { if (conn !== c) return; ready = false; conn = null; status('連線中斷，重新連線中…', 'bad'); retry(); };
+    const lost = () => { if (conn !== c) return; ready = false; conn = null; clearInterval(tick); t0 = performance.now(); status('連線中斷，重新連線中…', 'bad'); retry(800); };
     c.on('close', lost); c.on('error', lost);
-    setTimeout(() => { if (conn === c && !c.open) { try { c.close(); } catch (e) {} conn = null; retry(500); } }, 9000);
+    setTimeout(() => { if (conn === c && !c.open) { try { c.close(); } catch (e) {} conn = null; retry(200); } }, 7000);   // stuck ICE: redial
   }
   function send(msg) {
     if (!ready || !conn || !conn.open) { status('還沒連上魚缸…', 'bad'); return false; }
