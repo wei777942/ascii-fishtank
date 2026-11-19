@@ -87,11 +87,11 @@ with sync_playwright() as p:
     R["tilt_pellet_x_mean_frac"] = tank.evaluate("()=>+(__tank.food.reduce((a,f)=>a+f.x,0)/__tank.food.length/innerWidth).toFixed(2)")
     can.evaluate("()=>window.dispatchEvent(new DeviceOrientationEvent('deviceorientation',{alpha:0,beta:45,gamma:0}))"); tank.wait_for_timeout(700)
     # 撒飼料 button
-    tank.evaluate("()=>__tank.food.length=0"); can.wait_for_timeout(500); can.tap("#bFeed")
+    wait(tank, "()=>false", 0.8); tank.evaluate("()=>{__tank.food.length=0;__tank.fish.forEach(f=>f.hunger=100)}"); can.wait_for_timeout(500); can.tap("#bFeed")
     R["button_food_s"] = wait(tank, "()=>__tank.food.length>0", 5); wait(tank, "()=>false", 0.4); R["button_pellets"] = tank.evaluate("()=>__tank.food.length")
     tank.wait_for_timeout(700); tank.screenshot(path="/workspace/fishtank/shots/v10-fed.png")
     # rate limit: 10 rapid taps -> limited
-    tank.evaluate("()=>__tank.food.length=0")
+    wait(tank, "()=>false", 0.6); tank.evaluate("()=>{__tank.food.length=0;__tank.fish.forEach(f=>f.hunger=100)}")
     t0 = time.time()
     for _ in range(10): can.tap("#bFeed"); pump(tank, can)
     R["rapid_10_taps_secs"] = round(time.time() - t0, 2)
