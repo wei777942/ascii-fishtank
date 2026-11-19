@@ -71,3 +71,13 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - ICE trimmed to 1 STUN (Google) + 1 TURN (us-0 UDP+TCP), iceCandidatePoolSize 2.
 - Can: connects on load (before 「點一下開始」), shows progress (1/3, 2/3) with elapsed seconds and the final connect time; faster retries (peer-unavailable 1.2 s, stuck ICE redial after 7 s).
 - Timing: `python3 timing_can.py [url] [runs]`.
+
+## v12 (2026-11-19) — phone can over the ntfy.sh relay (WebRTC removed)
+- Real phones stayed at (2/3) forever: WebRTC (PeerJS) never opened. Now both pages talk through **ntfy.sh** (free, no account):
+  publish = `POST https://ntfy.sh/fishtank-<room>?cache=no&firebase=no`, subscribe = `wss://ntfy.sh/fishtank-<room>/ws` (SSE fallback).
+- Room = 20 random chars (crypto, ~99 bits) → topic is unguessable; still in sessionStorage per tab, QR only from ≡ → 手機飼料罐.
+- Shared code: `lib/relay.js` (paced queue ≥0.9 s, token bucket burst 24 / +1 per 10 s per device, feeds merge up to 6, newest state only).
+- Protocol (JSON, field `f` = sender): can → hello / feed{n,x} / knock / water / ping (4 min) / bye; tank → state{to,n,hunger,clean} (on hello, after actions ≤1 per 12 s, 2.5 s after water) / here (tab reloaded) / bye.
+- ntfy.sh anonymous limits are per IP: 60 requests burst (+1 per 5 s) and 250 messages/day. On 429 the pages show 「今天的免費傳送次數用完了」.
+- sw.js `fishtank-v12`; ntfy.sh never intercepted. PeerJS removed (lib/peerjs.min.js deleted).
+- Test: `python3 test_v12.py <url> 3` (two real browser contexts through the real relay; no bridge).

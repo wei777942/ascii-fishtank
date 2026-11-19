@@ -790,24 +790,24 @@ function menuIdleCheck() {
   if (Date.now() - menuT > 8000) setMenu(false);
 }
 document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
-// ---------- v10: phone food can — WebRTC (PeerJS, bundled) + client-side QR ----------
-const ROOM_PREFIX = 'asciifishtank-';
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:us-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }], iceCandidatePoolSize: 2 };   // v11: one fast STUN + one TURN relay (UDP+TCP); fewer servers = faster ICE
-const remote = { peer: null, conns: new Set(), room: null, status: 'off', loading: null, tries: 0, lastFeed: 0, lastKnock: 0, everConnected: false };
+// ---------- v12: phone food can — tiny messages relayed by ntfy.sh (HTTPS + WebSocket, no account) + client-side QR ----------
+// v10/v11 used WebRTC (PeerJS); on real phones the data channel often never opened (NAT), so the relay is now the only transport.
+const TOPIC_PREFIX = 'fishtank-', ROOM_LEN = 20;
+const remote = { relay: null, room: null, status: 'off', loading: null, cans: new Map(), lastFeed: 0, lastKnock: 0, everConnected: false, stateT: 0, lastState: 0 };
 function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error(src)); document.head.appendChild(el); }); }
-function newRoom() {
-  const A = 'abcdefghjkmnpqrstuvwxyz23456789'; let r = '';
-  for (let i = 0; i < 6; i++) r += A[Math.floor(Math.random() * A.length)];
-  try { sessionStorage.setItem('fishtank.room', r); } catch (e) {}
+function newRoom() {                      // unguessable: 20 chars from a 31-letter alphabet via crypto (~99 bits)
+  const A = 'abcdefghjkmnpqrstuvwxyz23456789', u = new Uint32Array(ROOM_LEN); crypto.getRandomValues(u);
+  let r = ''; for (let i = 0; i < ROOM_LEN; i++) r += A[u[i] % A.length];
+  try { sessionStorage.setItem('fishtank.room', r); sessionStorage.removeItem('fishtank.canSeen'); } catch (e) {}
   return r;
 }
-function roomId() { let r = null; try { r = sessionStorage.getItem('fishtank.room'); } catch (e) {} return r && /^[a-z0-9]{6}$/.test(r) ? r : newRoom(); }
+function roomId() { let r = null; try { r = sessionStorage.getItem('fishtank.room'); } catch (e) {} return r && new RegExp(`^[a-z0-9]{${ROOM_LEN}}$`).test(r) ? r : newRoom(); }
 function canLink() { return location.origin + location.pathname.replace(/[^/]*$/, '') + '?can=' + remote.room; }
-const openConns = () => [...remote.conns].filter(c => c.open);
+const openConns = () => [...remote.cans.keys()];          // phones heard from recently
 function remoteStatus(st) {
   if (st) remote.status = st;
-  const n = openConns().length, el = $('canStatus');
-  const txt = n ? `已連線 ✓（${n} 支手機）` : { connecting: '連線伺服器中…', waiting: '等待連線…', retry: '連線中斷，重新連線中…', error: '無法載入連線元件，請檢查網路' }[remote.status] || '';
+  const n = remote.cans.size, el = $('canStatus');
+  const txt = n ? `已連線 ✓（${n} 支手機）` : { connecting: '連線伺服器中…', waiting: '等待連線…', retry: '連線中斷，重新連線中…', error: '無法載入連線元件，請檢查網路', limit: '今天的免費傳送次數用完了（ntfy.sh 限制）' }[remote.status] || '';
   if (el) { el.textContent = txt; el.classList.toggle('ok', n > 0); }
   $('canLive').classList.toggle('on', n > 0);      // tiny indicator inside the ≡ menu only
 }
@@ -835,7 +835,7 @@ const canPanelOpen = () => $('canPanel').style.display === 'block';
 function closeCanPanel() { $('canPanel').style.display = 'none'; }
 function openCanPanel() {                // only ever opened from ≡ → 手機飼料罐 (never on load)
   const el = $('canPanel'); el.style.display = 'block'; remote.room = remote.room || roomId(); renderCanPanel(); placeCanPanel();
-  if (!(remote.peer && !remote.peer.destroyed)) startRemote();
+  if (!remote.relay) startRemote();
 }
 $('canPanel').addEventListener('click', e => {
   e.stopPropagation();
@@ -846,50 +846,56 @@ $('canPanel').addEventListener('click', e => {
   }
 });
 function startRemote() {
+  if (remote.relay) return Promise.resolve();
   if (remote.loading) return remote.loading;
   remoteStatus('connecting');
-  remote.loading = Promise.all([window.Peer ? 0 : loadScript('lib/peerjs.min.js?v=11'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=11')])
-    .then(() => { remote.loading = null; drawQR(); openPeer(); })
+  remote.loading = Promise.all([window.Relay ? 0 : loadScript('lib/relay.js?v=12'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=12')])
+    .then(() => { remote.loading = null; drawQR(); openRelay(); })
     .catch(() => { remote.loading = null; remoteStatus('error'); });
   return remote.loading;
 }
-function openPeer() {
-  if (remote.peer && !remote.peer.destroyed) return;
-  remoteStatus('connecting');
-  const p = new Peer(ROOM_PREFIX + remote.room, { debug: 0, config: ICE });
-  remote.peer = p;
-  p.on('open', () => { remote.tries = 0; remote.netFails = 0; remoteStatus('waiting'); });
-  p.on('connection', c => {
-    c.on('open', () => {
-      remote.conns.add(c); remoteStatus(); sendState(c);
-      toast(remote.everConnected ? '手機飼料罐重新連上了' : '手機飼料罐已連線', 1.8); remote.everConnected = true;
-      if ($('canPanel').style.display === 'block') setTimeout(() => { if (openConns().length) $('canPanel').style.display = 'none'; }, 900);
-    });
-    c.on('data', d => onRemote(d, c));
-    const gone = () => { remote.conns.delete(c); remoteStatus(); };
-    c.on('close', gone); c.on('error', gone);
+function openRelay() {
+  if (remote.relay) return;
+  const r = new Relay(TOPIC_PREFIX + remote.room, 'T', {
+    onStatus: st => {
+      if (st === 'open') {
+        remoteStatus('waiting');
+        let seen = null; try { seen = sessionStorage.getItem('fishtank.canSeen'); } catch (e) {}
+        if (seen) r.send({ t: 'here' });           // tank tab reloaded: phones already in this room reconnect at once
+      } else if (st === 'retry') remoteStatus('retry');
+      else if (st === 'limit') remoteStatus('limit');
+    },
+    onMessage: onRemote
   });
-  p.on('disconnected', () => { if (!p.destroyed) { remoteStatus('retry'); setTimeout(() => { if (!p.destroyed && p.disconnected) try { p.reconnect(); } catch (e) {} }, 1500); } });
-  p.on('error', err => {
-    const t = err && err.type;
-    if (t === 'unavailable-id') {                 // old registration still alive (e.g. tank tab reloaded): retry, then pick a new room
-      p.destroy(); remote.tries++;
-      if (remote.tries > 6) { remote.room = newRoom(); remote.tries = 0; if ($('canPanel').style.display === 'block') renderCanPanel(); }
-      setTimeout(openPeer, 1500);
-    } else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') {
-      remoteStatus('retry'); remote.netFails = (remote.netFails || 0) + 1;
-      const wait = Math.min(60000, 1500 * Math.pow(2, Math.min(5, remote.netFails - 1)));   // 1.5 s, 3 s, 6 s … 48 s
-      setTimeout(() => { if (p.destroyed) openPeer(); else if (p.disconnected) try { p.reconnect(); } catch (e) {} }, wait);
-    }
-  });
+  remote.relay = r; r.start();
 }
-function sendState(c) {
+function sendState(to) {
+  if (!remote.relay) return;
   const avg = fish.length ? fish.reduce((a, f) => a + f.hunger, 0) / fish.length : 100;
-  try { if (c.open) c.send({ t: 'state', n: fish.length, hunger: Math.round(avg), clean: Math.round((1 - S.dirt) * 100), food: food.length }); } catch (e) {}
+  remote.lastState = Date.now();
+  remote.relay.send({ t: 'state', to: to || '*', n: fish.length, hunger: Math.round(avg), clean: Math.round((1 - S.dirt) * 100) });
 }
-function onRemote(d, c) {
-  if (!d || typeof d !== 'object') return;
-  const now = performance.now();
+function scheduleState() {                 // after actions: at most one status every 12 s (ntfy.sh per-IP limits)
+  if (remote.stateT) return;
+  remote.stateT = setTimeout(() => { remote.stateT = 0; if (remote.cans.size) sendState('*'); }, Math.max(2500, remote.lastState + 12000 - Date.now()));
+}
+function canSeen(id) {
+  const isNew = !remote.cans.has(id); remote.cans.set(id, Date.now());
+  if (isNew) {
+    remoteStatus(); try { sessionStorage.setItem('fishtank.canSeen', '1'); } catch (e) {}
+    toast(remote.everConnected ? '手機飼料罐重新連上了' : '手機飼料罐已連線', 1.8); remote.everConnected = true;
+    if (canPanelOpen()) setTimeout(() => { if (remote.cans.size) closeCanPanel(); }, 900);
+  }
+  return isNew;
+}
+function onRemote(d) {
+  if (!d || typeof d !== 'object' || typeof d.f !== 'string' || d.f === 'T' || d.f.length > 16) return;
+  const id = d.f, now = performance.now();
+  if (d.t === 'bye') { if (remote.cans.delete(id)) remoteStatus(); return; }
+  if (!['hello', 'ping', 'feed', 'knock', 'water'].includes(d.t)) return;
+  canSeen(id);
+  if (d.t === 'hello') { sendState(id); return; }
+  if (d.t === 'ping') return;
   if (d.t === 'feed') {
     if (now - remote.lastFeed < 250) return; remote.lastFeed = now;
     const n = clamp(Math.round(+d.n || 1), 1, 6), cx = typeof d.x === 'number' && isFinite(d.x) ? W * (0.5 + clamp(d.x, -1, 1) * 0.4) : null;
@@ -897,13 +903,17 @@ function onRemote(d, c) {
   } else if (d.t === 'knock') {
     if (now - remote.lastKnock < 400) return; remote.lastKnock = now;
     knock(rnd(W * 0.15, W * 0.85), rnd(surfaceY + 60, sandY - 60));
-  } else if (d.t === 'water') { changeWater(); }
-  sendState(c);
+  } else if (d.t === 'water') { changeWater(); clearTimeout(remote.stateT); remote.stateT = setTimeout(() => { remote.stateT = 0; sendState('*'); }, 2500); return; }   // show the new 水質 once the change is done
+  scheduleState();
 }
-setInterval(() => { for (const c of openConns()) sendState(c); }, 5000);
-// v11: get the room ready in the background shortly after load (QR still only appears from ≡ → 手機飼料罐)
+setInterval(() => {                        // phones ping every 4 min; forget ones silent for 9 min
+  let ch = false; for (const [id, t] of remote.cans) if (Date.now() - t > 9 * 60000) { remote.cans.delete(id); ch = true; }
+  if (ch) remoteStatus();
+}, 30000);
+addEventListener('pagehide', () => { if (remote.relay && remote.cans.size) remote.relay.beacon({ t: 'bye' }); });
+// get the room ready in the background shortly after load (QR still only appears from ≡ → 手機飼料罐)
 function preloadRemote() {
-  if (remote.peer || remote.loading) return;
+  if (remote.relay || remote.loading) return;
   remote.room = remote.room || roomId();
   startRemote();
 }

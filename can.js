@@ -1,9 +1,7 @@
-// v10 phone food can: talks to the tank over WebRTC (PeerJS). Never reads or writes the tank's localStorage save.
+// v12 phone food can: talks to the tank through the ntfy.sh relay (HTTPS + WebSocket, no account). Never reads or writes the tank's localStorage save.
 (() => {
   const $ = id => document.getElementById(id);
-  const PREFIX = 'asciifishtank-';
-  const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:us-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }], iceCandidatePoolSize: 2 };
-  const room = (new URLSearchParams(location.search).get('can') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
+  const room = (new URLSearchParams(location.search).get('can') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 32);
   const CAN = [
     '<span class="lid">  .------.  </span>',
     '<span class="lid"> (________) </span>',
@@ -14,49 +12,57 @@
     " '--------' "].join('\n');
   $('can').innerHTML = CAN;
 
-  let peer = null, conn = null, ready = false, retryT = 0, lastFeed = 0, lastKnock = 0, lastWater = 0, tiltX = 0, motionOn = false, pouring = false, ac = null;
+  let relay = null, ready = false, lastFeed = 0, lastKnock = 0, lastWater = 0, tiltX = 0, motionOn = false, pouring = false, ac = null, helloT = 0, helloN = 0, detailT = 0;
+  const id = (() => { const A = 'abcdefghjkmnpqrstuvwxyz23456789', u = new Uint32Array(8); crypto.getRandomValues(u); return 'c' + [...u].map(v => A[v % A.length]).join(''); })();
   const status = (t, cls) => { const el = $('status'); el.textContent = t; el.className = cls || ''; };
 
   // ---------- connection ----------
-  function retry(ms = 2500) { clearTimeout(retryT); retryT = setTimeout(connect, ms); }
   let t0 = performance.now(), tick = 0, phase = '';
-  function progress(ph) {                     // v11: visible progress with elapsed seconds
+  function progress(ph, cls) {                // visible progress with elapsed seconds
     phase = ph; clearInterval(tick);
-    const show = () => status(`${ph}　${((performance.now() - t0) / 1000).toFixed(1)} 秒`);
+    const show = () => status(`${ph}　${((performance.now() - t0) / 1000).toFixed(1)} 秒`, cls);
     show(); tick = setInterval(() => { if (!ready) show(); else clearInterval(tick); }, 250);
+  }
+  function hello(fresh) {                     // say hello; repeat (slowly) until the tank answers
+    clearTimeout(helloT); if (fresh) helloN = 0;
+    if (!relay || !relay.open) return;
+    relay.send({ t: 'hello' }); helloN++;
+    if (!ready && helloN === 3) progress('找不到魚缸，請確認電腦上的魚缸頁面開著…（2/3）', 'bad');
+    helloT = setTimeout(() => { if (!ready) hello(); }, [2500, 4000, 6000, 10000, 15000][helloN - 1] || 30000);
+  }
+  function lost(msg) { ready = false; t0 = performance.now(); clearTimeout(detailT); progress(msg, 'bad'); }
+  function onMessage(d) {
+    if (d.f !== 'T') return;
+    if (d.t === 'state' && (d.to === id || d.to === '*')) {
+      clearTimeout(helloT);
+      const detail = () => status(`已連線 ✓　魚 ${d.n} 隻・飽足 ${d.hunger}%・水質 ${d.clean}%`, 'ok');
+      if (!ready) {
+        ready = true; clearInterval(tick); window.__connectMs = Math.round(performance.now() - t0);
+        status(`已連線 ✓（${(window.__connectMs / 1000).toFixed(1)} 秒）`, 'ok');
+        clearTimeout(detailT); detailT = setTimeout(detail, 2500);
+      } else { clearTimeout(detailT); detail(); }
+    } else if (d.t === 'here') { hello(true); }                     // tank page reloaded
+    else if (d.t === 'bye') { lost('魚缸頁面關閉了，等待重新開啟…'); }
   }
   function connect() {
     if (!room) { status('沒有房間碼，請重新掃描魚缸上的 QR', 'bad'); return; }
-    if (!window.Peer) { status('無法載入連線元件，請檢查網路', 'bad'); return; }
-    if (!peer || peer.destroyed) {
-      progress('連線伺服器中…（1/3）');
-      peer = new Peer({ debug: 0, config: ICE });
-      peer.on('open', dial);
-      peer.on('disconnected', () => { if (!peer.destroyed) setTimeout(() => { if (peer && !peer.destroyed && peer.disconnected) try { peer.reconnect(); } catch (e) {} }, 1500); });
-      peer.on('error', e => {
-        const t = e && e.type;
-        if (t === 'peer-unavailable') { ready = false; clearInterval(tick); status('找不到魚缸，請確認電腦上的魚缸頁面開著…', 'bad'); retry(1200); }
-        else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') { ready = false; clearInterval(tick); status('網路中斷，重新連線中…', 'bad'); retry(2000); }
-      });
-    } else if (peer.open) dial();
-    else if (peer.disconnected) try { peer.reconnect(); } catch (e) {}
-  }
-  function dial() {
-    progress('尋找魚缸、建立連線中…（2/3）');
-    const c = peer.connect(PREFIX + room, { reliable: true });
-    conn = c;
-    c.on('open', () => { if (conn !== c) return; ready = true; clearInterval(tick); window.__connectMs = Math.round(performance.now() - t0); status(`已連線 ✓（${(window.__connectMs / 1000).toFixed(1)} 秒）`, 'ok'); c.send({ t: 'hello' }); });
-    c.on('data', d => {
-      if (conn !== c || !d || d.t !== 'state') return;
-      status(`已連線 ✓　魚 ${d.n} 隻・飽足 ${d.hunger}%・水質 ${d.clean}%`, 'ok');
+    if (!window.Relay || !window.WebSocket || !window.crypto) { status('無法載入連線元件，請檢查網路', 'bad'); return; }
+    progress('連線伺服器中…（1/3）');
+    relay = new Relay('fishtank-' + room, id, {
+      onMessage,
+      onStatus: st => {
+        if (st === 'open') { if (!ready) progress('尋找魚缸中…（2/3）'); hello(true); }       // also re-syncs after a reconnect
+        else if (st === 'retry') { if (ready) lost('網路中斷，重新連線中…'); else progress('網路中斷，重新連線中…（1/3）', 'bad'); }
+        else if (st === 'limit') { clearInterval(tick); status('今天的免費傳送次數用完了（ntfy.sh 限制），請稍後再試', 'bad'); }
+      }
     });
-    const lost = () => { if (conn !== c) return; ready = false; conn = null; clearInterval(tick); t0 = performance.now(); status('連線中斷，重新連線中…', 'bad'); retry(800); };
-    c.on('close', lost); c.on('error', lost);
-    setTimeout(() => { if (conn === c && !c.open) { try { c.close(); } catch (e) {} conn = null; retry(200); } }, 7000);   // stuck ICE: redial
+    relay.start();
   }
+  setInterval(() => { if (ready && relay && document.visibilityState === 'visible') relay.send({ t: 'ping' }); }, 4 * 60000);
+  addEventListener('pagehide', () => { if (relay && ready) relay.beacon({ t: 'bye' }); });
   function send(msg) {
-    if (!ready || !conn || !conn.open) { status('還沒連上魚缸…', 'bad'); return false; }
-    try { conn.send(msg); return true; } catch (e) { return false; }
+    if (!ready || !relay) { status('還沒連上魚缸…', 'bad'); setTimeout(() => { if (!ready) progress(phase, ''); }, 1200); return false; }
+    relay.send(msg); return true;
   }
 
   // ---------- feedback ----------
@@ -130,6 +136,6 @@
     else $('hint').textContent = '動作感測沒有開啟，請用下面的「撒飼料」按鈕';
   }
   $('start').addEventListener('click', start, { once: true });
-  window.__can = { get ready() { return ready; }, feed, get motionOn() { return motionOn; }, room };
+  window.__can = { get ready() { return ready; }, feed, get motionOn() { return motionOn; }, room, id, get relay() { return relay; } };
   connect();
 })();
