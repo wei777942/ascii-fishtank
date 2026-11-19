@@ -70,6 +70,12 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
   #canPanel #canStatus.ok{color:#46ff8c}
   #canPanel .cr{display:flex;gap:8px;justify-content:center}
   #canPanel .cr button{min-height:40px;padding:6px 14px}
+  #dlg{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
+  #dlg.on{display:flex}
+  #dlg .box{width:min(300px,86vw);background:#001214;border:1px solid rgba(57,246,255,.45);border-radius:18px;padding:18px 16px 14px;color:#aefcff;font-size:15px;line-height:1.6;text-align:center;box-sizing:border-box}
+  #dlg .dr{display:flex;gap:10px;justify-content:center;margin-top:14px}
+  #dlg .dr button{min-height:44px;padding:8px 18px;font-size:15px}
+  #dlg #dlgYes.danger{color:#ffd0c8;border-color:#ff5a4a;background:rgba(255,70,50,.22)}
   #canLive{color:#46ff8c;display:none}
   #canLive.on{display:inline}
   #panel .dim{color:#4f9aa0}
@@ -93,6 +99,7 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
   <button id="bDecor">⌂ 佈置</button>
   <button id="bCan">⇄ 手機飼料罐<span id="canLive"> ●</span></button>
   <button id="bTilt" class="ui">📱 傾斜：關</button>
+  <button id="bReset">↺ 重新開缸</button>
 </div>
 <div id="ebar" class="ui">
   <div class="erow">
@@ -110,6 +117,7 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
 <div id="panel" class="ui"></div>
 <div id="canPanel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script>if (!/[?&]can=/.test(location.search)) document.write('<script src="lib/relay.js?v=13"><\/script><script src="app.js?v=13"><\/script>');</script>
+<div id="dlg" class="ui"><div class="box"><div id="dlgMsg"></div><div class="dr"><button id="dlgNo">取消</button><button id="dlgYes">確定</button></div></div></div>
+<script>if (!/[?&]can=/.test(location.search)) document.write('<script src="lib/relay.js?v=14"><\/script><script src="app.js?v=14"><\/script>');</script>
 </body>
 </html>

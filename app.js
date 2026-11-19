@@ -101,6 +101,41 @@ const ROCKS = [          // ASCII rocks, bottom-aligned on the sand
   ['  ()  ', ' (  )_', '(_)(__)'],
 ];
 const ROCKPX = [['.a.', 'aaa'], ['..a...', '.aab..', 'aaaaa.', 'aaaaaa'], ['.aa....', 'aabaa..', 'aaaaaaa']];
+// v14: horizontal driftwood log (bark =~, knots o, a small branch); same box/size/drag rules as rocks
+const LOG = ['      _/     ', ' _.=o==~==._ ', '(_)=~==o=~(@)'];
+const LOG_AC = { 'o': '#e0b080', '@': '#e0b080', '~': '#7a4e2a', '_': '#a8784a', '/': '#a8784a', '(': '#c89868', ')': '#c89868', '.': '#a8784a' };
+const LOGPX = ['........a....', '.......a.....', '.aaaaaaaaaaa.', 'abaacaaabaaac', 'aaacaaaaacaab', '.aaaaaaaaaaa.'];
+const solidArt = d => d.type === 'log' ? LOG : (ROCKS[d.v] || ROCKS[0]);
+// v14: white pebble bed, pre-rendered once per resize (static, no flicker)
+const pebCv = document.createElement('canvas'), pebLow = document.createElement('canvas');
+let pebTop = 0, pebH = 0;
+function seeded(n) { let a = n >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const PEB_COLS = ['#f4f6f7', '#e2e7e9', '#cdd4d7', '#b3bcc0', '#98a2a6'];
+function buildPebbles() {
+  const r = seeded(20261120), top = sandY - fs * 0.15, h = Math.max(8, H - top);
+  pebTop = top; pebH = h;
+  pebCv.width = Math.ceil(W * DPR); pebCv.height = Math.ceil(h * DPR);
+  const g = pebCv.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, W, h);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const CH = ['.', 'o', '°', '∘', '·', 'o', '.', '°'];
+  for (let y = fs * 0.2, row = 0; y < h; y += fs * 0.36, row++) {
+    const fade = row === 0 ? 0.55 : 1;
+    for (let x = (row % 2) * charW * 0.25; x < W + charW; x += charW * (0.42 + r() * 0.2)) {
+      const z = 0.45 + r() * 0.35;
+      g.font = `${fs * z}px ${MONO}`; g.fillStyle = PEB_COLS[(r() * PEB_COLS.length) | 0]; g.globalAlpha = (0.38 + r() * 0.34) * fade;
+      g.fillText(CH[(r() * CH.length) | 0], x + (r() - 0.5) * charW * 0.2, y + (r() - 0.5) * fs * 0.12);
+    }
+  }
+  g.globalAlpha = 1;
+  const sy = Math.round(sandY / PX), lh2 = Math.max(1, low.height - sy);
+  pebLow.width = low.width; pebLow.height = lh2;
+  const q = pebLow.getContext('2d'); q.clearRect(0, 0, pebLow.width, lh2);
+  for (let y = 0; y < lh2; y++) for (let x = 0; x < pebLow.width; x++) {
+    const v = r();
+    if (v < 0.34) { q.globalAlpha = 0.35 + r() * 0.35; q.fillStyle = PEB_COLS[(r() * PEB_COLS.length) | 0]; q.fillRect(x, y, v < 0.06 && x + 1 < pebLow.width ? 2 : 1, 1); }
+  }
+  q.globalAlpha = 1;
+}
 
 // pixel-art sprites (right-facing). a=body (stage colour) b=accent e=eye s=spike/legs
 const BABY_PX = {
@@ -157,7 +192,7 @@ let S = load();
 let W = 0, H = 0, DPR = 1, dprCap = 3, fs = 18, charW = 10, safe = { t: 0, r: 0, b: 0, l: 0 };
 let surfaceY = 0, sandY = 0, bounds = { l: 0, r: 0, t: 0, b: 0 };
 let decor = null, edit = null;
-let fish = [], food = [], bubbles = [], ripples = [], crumbs = [], specks = [], weeds = [], sandRows = [];
+let fish = [], food = [], bubbles = [], ripples = [], crumbs = [], specks = [], weeds = [];
 let t = 0, intro = 0, shake = 0, lastWall = Date.now(), lastSave = 0;
 let tilt = { raw: 0, x: 0 }, slosh = { s: 0, v: 0 }, waterDip = 0, changing = null, motionOn = false;
 const groupTs = {};
@@ -188,7 +223,9 @@ function load() {
   s.v = 3;
   return s;
 }
+let resetting = false;                   // v14: set while 重新開缸 clears the save, so pagehide doesn't write it back
 function save() {
+  if (resetting) return;
   S.t = Date.now();
   S.fish = fish.map(f => { const o = { sp: f.sp, name: f.name, hunger: f.hunger, mood: f.mood, sick: f.sick, growth: f.growth }; if (f.grp) o.grp = f.grp; if (f.bt) o.bt = f.bt; return o; });
   if (decor) S.decor = decor.map(d => ({ type: d.type, fx: +d.fx.toFixed(4), n: d.n, v: d.v, back: !!d.back, s: +(d.s || 1).toFixed(3) }));
@@ -248,10 +285,7 @@ function resize() {
   for (const f of fish) { f.x = clamp(f.x, -80, W + 80); f.y = clamp(f.y, bounds.t, bounds.b); }
 }
 function buildScenery() {
-  const chars = '._.,-\'`. _ ,.';
-  sandRows = [];
-  const n = Math.ceil(W / (charW * 0.9)) + 2;
-  for (let r = 0; r < 5; r++) { let s = ''; for (let i = 0; i < n; i++) s += chars[(Math.random() * chars.length) | 0]; sandRows.push(s); }
+  buildPebbles();
   if (!decor) {
     if (!S.decor) {           // default layout = the v1 seaweed row
       S.decor = [];
@@ -276,7 +310,7 @@ function rockBox(d) {        // css-px bounding box of a decor item
   const k = d.s || 1;
   if (PLANTS[d.type]) return plantBox(d);
   if (d.type === 'weed') return { x0: d.x - charW * 1.2 * Math.max(1, k), x1: d.x + charW * 1.2 * Math.max(1, k), y0: sandY - d.n * fs * 0.78 * k - fs * 0.4 - d.lift, y1: sandY + fs * 0.5 - d.lift };
-  const r = ROCKS[d.v] || ROCKS[0], w = (r[0].length * charW * 0.5 + charW * 0.3) * k + charW * 0.3;
+  const r = solidArt(d), w = (r[0].length * charW * 0.5 + charW * 0.3) * k + charW * 0.3;
   return { x0: d.x - w, x1: d.x + w, y0: sandY - r.length * fs * 0.82 * k - d.lift, y1: sandY + fs * 0.5 - d.lift };
 }
 
@@ -288,7 +322,7 @@ const PLANTS = {
   grass:   { label: '草叢', icon: '"', n: 3, min: 1, max: 6, rowH: 0.6 },
   anemone: { label: '海葵', icon: '*', n: 4, min: 2, max: 8, rowH: 0.7 },
 };
-const TYPE_LABEL = { weed: '水草', rock: '石頭', kelp: '海帶', coral: '珊瑚', grass: '草叢', anemone: '海葵' };
+const TYPE_LABEL = { log: '', weed: '水草', rock: '石頭', kelp: '海帶', coral: '珊瑚', grass: '草叢', anemone: '海葵' };
 const LEN_RANGE = { weed: [3, 22], kelp: [4, 30], coral: [3, 10], grass: [1, 6], anemone: [2, 8] };
 function plantGlyphs(d) {
   const k = d.s || 1, sc = fs / 18 * k, out = [], base = sandY - (d.lift || 0), P = PLANTS[d.type], rh = fs * P.rowH * k;
@@ -897,7 +931,7 @@ function startRemote() {
   if (remote.relay) return Promise.resolve();
   if (remote.loading) return remote.loading;
   remoteStatus('connecting');
-  remote.loading = Promise.all([window.Relay ? 0 : loadScript('lib/relay.js?v=13'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=13')])
+  remote.loading = Promise.all([window.Relay ? 0 : loadScript('lib/relay.js?v=14'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=14')])
     .then(() => { remote.loading = null; drawQR(); openRelay(); })
     .catch(() => { remote.loading = null; remoteStatus('error'); });
   return remote.loading;
@@ -923,9 +957,9 @@ function sendState(to) {
   remote.lastState = Date.now();
   remote.relay.send({ t: 'state', to: to || '*', n: fish.length, hunger: Math.round(avg), clean: Math.round((1 - S.dirt) * 100) });
 }
-function scheduleState() {                 // after actions: at most one status every 12 s (ntfy.sh per-IP limits)
+function scheduleState() {                 // after actions: at most one status every 20 s (ntfy.sh per-IP limits)
   if (remote.stateT) return;
-  remote.stateT = setTimeout(() => { remote.stateT = 0; if (remote.cans.size) sendState('*'); }, Math.max(2500, remote.lastState + 12000 - Date.now()));
+  remote.stateT = setTimeout(() => { remote.stateT = 0; if (remote.cans.size) sendState('*'); }, Math.max(2500, remote.lastState + 20000 - Date.now()));
 }
 function canSeen(id) {
   const isNew = !remote.cans.has(id); remote.cans.set(id, Date.now());
@@ -946,7 +980,7 @@ function onRemote(d) {
   if (d.t === 'ping') return;
   if (d.t === 'feed') {
     if (now - remote.lastFeed < 250) return; remote.lastFeed = now;
-    const n = clamp(Math.round(+d.n || 1), 1, 6), cx = typeof d.x === 'number' && isFinite(d.x) ? W * (0.5 + clamp(d.x, -1, 1) * 0.4) : null;
+    const n = clamp(Math.round(+d.n || 1), 1, 8), cx = typeof d.x === 'number' && isFinite(d.x) ? W * (0.5 + clamp(d.x, -1, 1) * 0.4) : null;
     // v13: no steering → spread evenly over the whole surface (one pellet per equal slice of 8%–92% of the width, in random order)
     const sl = [...Array(n).keys()].sort(() => Math.random() - 0.5);
     for (let i = 0; i < n; i++) dropFood(cx != null ? cx + rnd(-W * 0.06, W * 0.06) : W * (0.08 + 0.84 * (sl[i] + rnd(0.1, 0.9)) / n), 1);
@@ -975,6 +1009,26 @@ btn('bMenu', () => {                       // ≡ closes the dropdown and the �
   if (open || canPanelOpen()) { $('panel').style.display = 'none'; closeCanPanel(); }
   setMenu(!open);
 });
+// v14: 重新開缸 — two in-app confirmations, then clear only this tank's save and start fresh
+function ask(msg, yes, danger) {
+  return new Promise(res => {
+    const d = $('dlg'), y = $('dlgYes'), n = $('dlgNo');
+    $('dlgMsg').textContent = msg; y.textContent = yes; y.classList.toggle('danger', !!danger); d.classList.add('on');
+    const done = v => { d.classList.remove('on'); y.onclick = n.onclick = d.onclick = null; res(v); };
+    y.onclick = e => { e.stopPropagation(); done(true); };
+    n.onclick = e => { e.stopPropagation(); done(false); };
+    d.onclick = e => { e.stopPropagation(); if (e.target === d) done(false); };   // tap outside = 取消
+  });
+}
+async function resetTank() {
+  setMenu(false); $('panel').style.display = 'none'; closeCanPanel();
+  if (!await ask('確定要重新開缸嗎？所有魚和佈置都會清掉', '確定')) return;
+  if (!await ask('真的要清掉嗎？無法復原', '清掉重來', true)) return;
+  resetting = true;
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  location.reload();
+}
+btn('bReset', resetTank);
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
 
 // ---------- edit mode: 裝飾 (decor) + 生物 (creatures) ----------
@@ -1003,6 +1057,7 @@ function addDecor(x) {
   const d = edit.type === 'weed'
     ? { type: 'weed', fx: 0, n: (7 + Math.random() * 7) | 0, v: 0, back: false, s: 1 }
     : PLANTS[edit.type] ? { type: edit.type, fx: 0, n: PLANTS[edit.type].n, v: 0, back: false, s: 1 }
+    : edit.type === 'log' ? { type: 'log', fx: 0, n: 0, v: 0, back: false, s: 1 }
     : { type: 'rock', fx: 0, n: 0, v: edit.rv = (edit.rv + 1) % ROCKS.length, back: false, s: 1 };
   d.fx = clamp(x, 10, W - 10) / W; d.ph = rnd(0, 6.28); d.sp = rnd(0.7, 1.2); d.lift = 30;
   decor.push(d); syncDecor(); save();
@@ -1106,7 +1161,7 @@ function renderSel() {
     const z = d.s || 1;
     let h = `<span class="lbl">${TYPE_LABEL[d.type] || ''}</span>` +
       SIZES.map(([lb, v]) => `<button data-size="${v}" class="${Math.abs(z - v) < 0.15 ? 'sel' : ''}">${lb}</button>`).join('');
-    if (d.type !== 'rock') h += `<span class="sep"></span><button data-len="-1">短</button><span class="num" id="eLen">${d.n}</span><button data-len="1">長</button>`;
+    if (d.type !== 'rock' && d.type !== 'log') h += `<span class="sep"></span><button data-len="-1">短</button><span class="num" id="eLen">${d.n}</span><button data-len="1">長</button>`;
     h += `<span class="sep"></span><button data-step="-0.15" aria-label="縮小">−</button><button data-step="0.15" aria-label="放大">＋</button>`;
     h += `<button data-del="1" class="del">🗑 刪除</button>`;
     el.innerHTML = h; el.style.display = 'flex';
@@ -1238,7 +1293,7 @@ function speciesArt(k) {
 $('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}" class="art" aria-label="add"><pre>${speciesArt(k)}</pre></button>`).join('');
 btn('bDecor', () => enterEdit('decor'));
 btn('bLife', () => enterEdit('life'));
-$('ePalD').insertAdjacentHTML('afterbegin', '<button id="eWeed" data-type="weed">} 水草</button><button id="eRock" data-type="rock">(_) 石頭</button>' +
+$('ePalD').insertAdjacentHTML('afterbegin', '<button id="eWeed" data-type="weed">} 水草</button><button id="eRock" data-type="rock">(_) 石頭</button><button id="eLog" data-type="log" aria-label="log">=o=~(@)</button>' +
   Object.keys(PLANTS).map(k => `<button data-type="${k}">${PLANTS[k].icon} ${PLANTS[k].label}</button>`).join(''));
 $('ePalD').addEventListener('click', e => { const b = e.target.closest('button[data-type]'); if (b && edit) { e.stopPropagation(); setEditType(b.dataset.type); } });
 btn('eTrash', () => toast('把水草或石頭拖到這裡刪除', 1.6));
@@ -1388,6 +1443,12 @@ function drawRocks() {
     ctx.font = `${fs * z}px ${MONO}`;
     glow('#6fb5ad', 4); ctx.globalAlpha = 0.8;
     for (let k = 0; k < r.length; k++) ctx.fillText(r[k], d.x, sandY + fs * 0.15 * z - (r.length - 1 - k) * fs * 0.82 * z - d.lift);
+  } else if (d.type === 'log') {         // v14: per-character bark colours, flat
+    const z = d.s || 1, cw = charW * z; ctx.font = `${fs * z}px ${MONO}`; ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    for (let k = 0; k < LOG.length; k++) {
+      const line = LOG[k], y = sandY + fs * 0.15 * z - (LOG.length - 1 - k) * fs * 0.82 * z - d.lift, x0 = d.x - line.length * cw / 2;
+      for (let i = 0; i < line.length; i++) if (line[i] !== ' ') { ctx.fillStyle = LOG_AC[line[i]] || '#b07a48'; ctx.fillText(line[i], x0 + (i + 0.5) * cw, y); }
+    }
   }
   ctx.globalAlpha = 1;
 }
@@ -1430,12 +1491,9 @@ function drawEditOverlay() {
   }
   ctx.restore();
 }
-function drawSand() {
-  ctx.font = `${fs * 0.9}px ${MONO}`; ctx.shadowBlur = 0;
-  for (let r = 0; r < sandRows.length; r++) {
-    ctx.fillStyle = `rgba(70,190,140,${0.5 - r * 0.08})`;
-    ctx.fillText(sandRows[r], -charW * 0.5 + (r % 2) * charW * 0.4, sandY + fs * 0.55 + r * fs * 0.75);
-  }
+function drawSand() {          // v14: white pebble bed (pre-rendered)
+  ctx.shadowBlur = 0;
+  if (pebCv.width) ctx.drawImage(pebCv, 0, pebTop, W, pebH);
 }
 function drawFishA(f) {
   const sp = SPECIES[f.sp], L = look(f);
@@ -1544,14 +1602,12 @@ function renderPixel() {
     }
   }
   // sand
-  for (let y = Math.round(sandY / PX); y < lh; y++) for (let x = 0; x < lw; x++) {
-    const v = ((x * 73 + y * 151) ^ (x * y)) % 11;
-    if (v < 2) { lctx.fillStyle = v ? '#2e8a64' : '#1c5a40'; lctx.fillRect(x, y, 1, 1); }
-  }
+  if (pebLow.width) lctx.drawImage(pebLow, 0, Math.round(sandY / PX));   // v14: white pebbles
   drawPlantsPx();
-  for (const d of decor) if (d.type === 'rock') {
-    const z = d.s || 1, k = z >= 1.25 ? 2 : 1, r = z < 0.85 ? shrink(ROCKPX[d.v] || ROCKPX[0], 0.7) : (ROCKPX[d.v] || ROCKPX[0]);
-    sprite(r, d.x / PX, (sandY - d.lift) / PX - r.length * k / 2 + 1, false, { a: '#4f8f88', b: '#8fd0c8' }, false, k);
+  for (const d of decor) if (d.type === 'rock' || d.type === 'log') {
+    const lg = d.type === 'log', src = lg ? LOGPX : (ROCKPX[d.v] || ROCKPX[0]);
+    const z = d.s || 1, k = z >= 1.25 ? 2 : 1, r = z < 0.85 ? shrink(src, 0.7) : src;
+    sprite(r, d.x / PX, (sandY - d.lift) / PX - r.length * k / 2 + 1, false, lg ? { a: '#9a6a3a', b: '#e0b080', c: '#6e4524' } : { a: '#4f8f88', b: '#8fd0c8' }, false, k);
   }
   lctx.fillStyle = '#ffe066';
   for (const p of food) lctx.fillRect(Math.round(p.x / PX), Math.round(p.y / PX), 1, 1);

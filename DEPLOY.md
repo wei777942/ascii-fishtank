@@ -94,3 +94,14 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - sw.js `fishtank-v13`, `app.js?v=13`, `can.js?v=13`, `lib/relay.js?v=13`.
 - Tests: `test_v13.py` (uses `mock_ntfy.py` automatically when the box's ntfy.sh allowance is used up); older suites run with `seed_classic.py`
   (classic 17-creature start) via /tmp/runall.sh.
+
+## v14 (2026-11-20)
+- ≡ → 「↺ 重新開缸」 (last item): two in-app dialogs (確定 → danger 「清掉重來」), 取消 or tapping outside changes nothing.
+  Final confirm removes only `localStorage['fishtank.v1']` (save() is blocked during the reset so pagehide can't write it back) and reloads → v13 empty tank.
+- Tank floor: white pebble bed (. o ° ∘ ·, white/light grey, flat), pre-rendered once per resize into offscreen canvases (ASCII + pixel).
+- 佈置: new horizontal driftwood log (picture-only button `=o=~(@)`, ASCII + pixel sprites, drag / wheel / corner handle / −＋, saved).
+- Phone can "goes dead after buttons": root cause was the relay's token bucket (burst 24, +1 per 10 s) shared by shakes, pours and
+  buttons — after ~20 s of use only one post per 10 s got through. Now posts inside a 1.2 s window merge (feeds add up to 8, one knock),
+  bucket burst 30 / +1 per 5 s, and the merge window widens smoothly (1.2 → 5 s) as tokens run low instead of stalling.
+  Tank status after actions ≤ 1 per 20 s.
+- sw.js `fishtank-v14`, `?v=14` everywhere. Test: `MOCK=1 python3 test_v14.py <url>`.
