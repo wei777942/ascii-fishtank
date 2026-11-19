@@ -786,13 +786,124 @@ btn('bTilt', tiltButton);
 let menuT = 0;
 function setMenu(open) { document.body.classList.toggle('menu', open); menuT = Date.now(); if (typeof placePanel === 'function') placePanel(); }
 function menuIdleCheck() {
-  if (window.__menuPin || !document.body.classList.contains('menu') || edit || $('panel').style.display === 'block') { menuT = Date.now(); return; }
+  if (window.__menuPin || !document.body.classList.contains('menu') || edit || canPanelOpen() || $('panel').style.display === 'block') { menuT = Date.now(); return; }
   if (Date.now() - menuT > 8000) setMenu(false);
 }
 document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
+// ---------- v10: phone food can — WebRTC (PeerJS, bundled) + client-side QR ----------
+const ROOM_PREFIX = 'asciifishtank-';
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'], username: 'peerjs', credential: 'peerjsp' }] };   // PeerJS's free STUN/TURN, plus TURN over TCP for networks that block UDP
+const remote = { peer: null, conns: new Set(), room: null, status: 'off', loading: null, tries: 0, lastFeed: 0, lastKnock: 0, everConnected: false };
+function loadScript(src) { return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error(src)); document.head.appendChild(el); }); }
+function newRoom() {
+  const A = 'abcdefghjkmnpqrstuvwxyz23456789'; let r = '';
+  for (let i = 0; i < 6; i++) r += A[Math.floor(Math.random() * A.length)];
+  try { sessionStorage.setItem('fishtank.room', r); } catch (e) {}
+  return r;
+}
+function roomId() { let r = null; try { r = sessionStorage.getItem('fishtank.room'); } catch (e) {} return r && /^[a-z0-9]{6}$/.test(r) ? r : newRoom(); }
+function canLink() { return location.origin + location.pathname.replace(/[^/]*$/, '') + '?can=' + remote.room; }
+const openConns = () => [...remote.conns].filter(c => c.open);
+function remoteStatus(st) {
+  if (st) remote.status = st;
+  const n = openConns().length, el = $('canStatus');
+  const txt = n ? `已連線 ✓（${n} 支手機）` : { connecting: '連線伺服器中…', waiting: '等待連線…', retry: '連線中斷，重新連線中…', error: '無法載入連線元件，請檢查網路' }[remote.status] || '';
+  if (el) { el.textContent = txt; el.classList.toggle('ok', n > 0); }
+  $('canLive').classList.toggle('on', n > 0);      // tiny indicator inside the ≡ menu only
+}
+function drawQR() {
+  const cv2 = $('canQR'); if (!cv2 || !window.qrcode) return;
+  const q = qrcode(0, 'M'); q.addData(canLink()); q.make();
+  const n = q.getModuleCount(), m = 4, cell = Math.floor(cv2.width / (n + m * 2)), off = Math.floor((cv2.width - cell * n) / 2), c2 = cv2.getContext('2d');
+  c2.fillStyle = '#ffffff'; c2.fillRect(0, 0, cv2.width, cv2.height); c2.fillStyle = '#000000';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) c2.fillRect(off + c * cell, off + r * cell, cell, cell);
+}
+function renderCanPanel() {
+  const el = $('canPanel'), link = canLink();
+  el.innerHTML = `<div class="ct">⇄ 手機飼料罐</div><canvas id="canQR" width="400" height="400"></canvas>` +
+    `<div class="code">房間碼 <b>${remote.room}</b></div><div class="lnk">${link}</div><div id="canStatus"></div>` +
+    `<div class="cr"><button id="canCopy">複製連結</button><button id="canClose">關閉</button></div>` +
+    `<div class="lnk">用手機相機掃描，手機就變成飼料罐</div>`;
+  drawQR(); remoteStatus();
+}
+function placeCanPanel() {              // phones: sit below the dropdown so ≡ and the menu item stay tappable
+  const el = $('canPanel'), bar = $('bar'), r = document.body.classList.contains('menu') && bar.getBoundingClientRect();
+  if (innerWidth < 700 && r && r.height) { el.style.top = Math.round(r.bottom + 8) + 'px'; el.style.transform = 'translateX(-50%)'; el.style.maxHeight = Math.max(200, innerHeight - r.bottom - 20) + 'px'; el.style.overflowY = 'auto'; }
+  else { el.style.top = ''; el.style.transform = ''; el.style.maxHeight = ''; }
+}
+const canPanelOpen = () => $('canPanel').style.display === 'block';
+function closeCanPanel() { $('canPanel').style.display = 'none'; }
+function openCanPanel() {                // only ever opened from ≡ → 手機飼料罐 (never on load)
+  const el = $('canPanel'); el.style.display = 'block'; remote.room = remote.room || roomId(); renderCanPanel(); placeCanPanel();
+  if (!(remote.peer && !remote.peer.destroyed)) startRemote();
+}
+$('canPanel').addEventListener('click', e => {
+  e.stopPropagation();
+  if (e.target.id === 'canClose') $('canPanel').style.display = 'none';
+  else if (e.target.id === 'canCopy') {
+    const ok = () => toast('已複製連結', 1.4);
+    try { navigator.clipboard.writeText(canLink()).then(ok, () => toast(canLink(), 4)); } catch (er) { toast(canLink(), 4); }
+  }
+});
+function startRemote() {
+  if (remote.loading) return remote.loading;
+  remoteStatus('connecting');
+  remote.loading = Promise.all([window.Peer ? 0 : loadScript('lib/peerjs.min.js?v=10'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=10')])
+    .then(() => { remote.loading = null; drawQR(); openPeer(); })
+    .catch(() => { remote.loading = null; remoteStatus('error'); });
+  return remote.loading;
+}
+function openPeer() {
+  if (remote.peer && !remote.peer.destroyed) return;
+  remoteStatus('connecting');
+  const p = new Peer(ROOM_PREFIX + remote.room, { debug: 0, config: ICE });
+  remote.peer = p;
+  p.on('open', () => { remote.tries = 0; remoteStatus('waiting'); });
+  p.on('connection', c => {
+    c.on('open', () => {
+      remote.conns.add(c); remoteStatus(); sendState(c);
+      toast(remote.everConnected ? '手機飼料罐重新連上了' : '手機飼料罐已連線', 1.8); remote.everConnected = true;
+      if ($('canPanel').style.display === 'block') setTimeout(() => { if (openConns().length) $('canPanel').style.display = 'none'; }, 900);
+    });
+    c.on('data', d => onRemote(d, c));
+    const gone = () => { remote.conns.delete(c); remoteStatus(); };
+    c.on('close', gone); c.on('error', gone);
+  });
+  p.on('disconnected', () => { if (!p.destroyed) { remoteStatus('retry'); setTimeout(() => { if (!p.destroyed && p.disconnected) try { p.reconnect(); } catch (e) {} }, 1500); } });
+  p.on('error', err => {
+    const t = err && err.type;
+    if (t === 'unavailable-id') {                 // old registration still alive (e.g. tank tab reloaded): retry, then pick a new room
+      p.destroy(); remote.tries++;
+      if (remote.tries > 6) { remote.room = newRoom(); remote.tries = 0; if ($('canPanel').style.display === 'block') renderCanPanel(); }
+      setTimeout(openPeer, 2500);
+    } else if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') {
+      remoteStatus('retry');
+      setTimeout(() => { if (p.destroyed) openPeer(); else if (p.disconnected) try { p.reconnect(); } catch (e) {} }, 3000);
+    }
+  });
+}
+function sendState(c) {
+  const avg = fish.length ? fish.reduce((a, f) => a + f.hunger, 0) / fish.length : 100;
+  try { if (c.open) c.send({ t: 'state', n: fish.length, hunger: Math.round(avg), clean: Math.round((1 - S.dirt) * 100), food: food.length }); } catch (e) {}
+}
+function onRemote(d, c) {
+  if (!d || typeof d !== 'object') return;
+  const now = performance.now();
+  if (d.t === 'feed') {
+    if (now - remote.lastFeed < 250) return; remote.lastFeed = now;
+    const n = clamp(Math.round(+d.n || 1), 1, 6), cx = typeof d.x === 'number' && isFinite(d.x) ? W * (0.5 + clamp(d.x, -1, 1) * 0.4) : null;
+    for (let i = 0; i < n; i++) dropFood(cx != null ? cx + rnd(-W * 0.06, W * 0.06) : rnd(W * 0.12, W * 0.88), 1);
+  } else if (d.t === 'knock') {
+    if (now - remote.lastKnock < 400) return; remote.lastKnock = now;
+    knock(rnd(W * 0.15, W * 0.85), rnd(surfaceY + 60, sandY - 60));
+  } else if (d.t === 'water') { changeWater(); }
+  sendState(c);
+}
+setInterval(() => { for (const c of openConns()) sendState(c); }, 5000);
+btn('bCan', () => { if (canPanelOpen()) closeCanPanel(); else openCanPanel(); });   // tap again to close
 btn('bMenu', () => {                       // ≡ closes the dropdown and the 狀態 panel together
   const open = document.body.classList.contains('menu');
-  if (open) $('panel').style.display = 'none';
+  if (open || canPanelOpen()) { $('panel').style.display = 'none'; closeCanPanel(); }
   setMenu(!open);
 });
 function styleLabel() { $('bStyle').textContent = S.style === 'ascii' ? '▦ 像素' : 'Aa 字元'; }
@@ -1491,6 +1602,6 @@ window.addEventListener('pagehide', save);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 
 // test / debug hook
-window.__tank = { setMenu, breedTick, findPair, get hearts() { return hearts; }, MAX_CREATURES, handlePos, get ripples() { return ripples; }, get snd() { return snd; }, setSound, bloop, renderWaterSample, renderSfxSample, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
+window.__tank = { setMenu, remote, openCanPanel, canLink, breedTick, findPair, get hearts() { return hearts; }, MAX_CREATURES, handlePos, get ripples() { return ripples; }, get snd() { return snd; }, setSound, bloop, renderWaterSample, renderSfxSample, setAutoFeed, autoFeedTick, get autoFeeds() { return autoFeeds; }, get tilt() { return { raw: tilt.raw, x: tilt.x, slosh: slosh.s, on: S.tiltOn, ready: motionReady }; }, tiltButton, addCreature, removeCreature, enterEdit, exitEdit, setTab, selectDecor, selectFish, setDecorSize, setWeedLen, get schools() { return groupTs; }, geo: () => ({ W, H, sandY, surfaceY }), look, rockBox, get decor() { return decor; }, get edit() { return edit; }, care: sec => care(sec, fish), get fish() { return fish; }, get food() { return food; }, get bubbles() { return bubbles; }, S: () => S, knock, dropFood, changeWater };
 boot();
 })();

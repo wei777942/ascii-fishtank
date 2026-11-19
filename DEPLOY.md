@@ -57,3 +57,11 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - One shared 群魚 school (saves migrated: all minnows grp 1).
 - Cap 25 → 100. Breeding (♥ 繁殖 toggle in 狀態, default on): healthy adult same-species pairs, 1–3 babies, 12 h per-creature cooldown, 3–6 h between litters, offline max 3 babies per absence.
 - Tests: test_v9.py (menu/panel), test_v9b.py (school, breeding, cap, desktop resize, picker), perf_v9.py (frame cost 17 vs 100, CPU ×4), render_audio.py.
+
+## v10 (2026-11-19) — phone food can
+- ≡ → 「⇄ 手機飼料罐」 (only there; never on load) opens a QR + 6-char room code + link (`?can=ROOM`). Tap the item again or ≡ to close; auto-closes once a phone connects. Tiny green ● on the menu item while connected.
+- Transport: PeerJS 1.5.5 bundled at lib/peerjs.min.js (free public broker 0.peerjs.com + PeerJS STUN/TURN, plus TURN over TCP). QR: qrcode-generator 2.0.4 bundled at lib/qrcode.js. Both lazy-loaded only when the item is opened.
+- Room id kept in sessionStorage (`fishtank.room`); peer id = `asciifishtank-ROOM`. Tank tab reload keeps the room; phones redial automatically.
+- `?can=` on index.html redirects to can.html before app.js loads, so the can never reads/writes the tank save. can.js: shake (devicemotion spike) / tip forward (beta < -12°) / 撒飼料 → feed n=1–5 (rate-limited 450 ms); left/right tilt maps pellet x; 敲玻璃; 換水.
+- sw.js caches can.html, can.js and lib/*; cross-origin (broker, WebRTC) is never intercepted.
+- Test: `python3 test_v10.py [url]` — real broker signaling; the data channel is bridged by the test because this box's Chrome policy forbids non-proxied UDP WebRTC (BRIDGE=0 to try a real channel).

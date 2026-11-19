@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>飼料罐・電子魚缸</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;color:#aefcff;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    font-family:ui-monospace,Menlo,"SF Mono",monospace,-apple-system,"PingFang TC",sans-serif;touch-action:manipulation}
+  body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}
+  #top{text-align:center;padding:14px 12px 4px}
+  #title{font-size:18px;font-weight:600;color:#bfffd0}
+  #status{font-size:13px;margin-top:6px;color:#7ffcff;min-height:18px}
+  #status.ok{color:#46ff8c} #status.bad{color:#ffb070}
+  #area{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+  #can{margin:0;font:600 20px/1.15 ui-monospace,Menlo,monospace;color:#ffb347;transition:transform .25s ease-out;transform-origin:50% 80%}
+  #can .lid{color:#c9d6d8} #can .lbl{color:#46ff8c} #can .dots{color:#ffe066}
+  #can.pour{transform:rotate(-38deg) translateY(-6px)}
+  #can.shake{animation:shk .28s linear}
+  @keyframes shk{25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+  #hint{margin-top:22px;font-size:13px;color:#4f9aa0;text-align:center;padding:0 20px;line-height:1.6}
+  .pel{position:absolute;color:#ffe066;font-size:16px;pointer-events:none;animation:fall .9s ease-in forwards}
+  @keyframes fall{to{transform:translate(var(--dx),260px);opacity:0}}
+  #btns{display:flex;gap:10px;padding:10px 14px 18px;justify-content:center}
+  button{flex:1;max-width:140px;min-height:56px;background:rgba(0,20,22,.6);color:#7ffcff;border:1px solid rgba(57,246,255,.45);border-radius:16px;
+    font:600 16px ui-monospace,Menlo,monospace,-apple-system,"PingFang TC",sans-serif;-webkit-appearance:none;touch-action:manipulation}
+  button:active{background:rgba(57,246,255,.22)}
+  #bFeed{color:#bfffd0;border-color:#46ff8c}
+  #start{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5;text-align:center}
+  #start div{font-size:22px;color:#bfffd0;border:1px solid #46ff8c;border-radius:18px;padding:16px 28px}
+  #start small{color:#4f9aa0;font-size:13px;padding:0 30px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="top"><div id="title">∴ 飼料罐</div><div id="status">連線中…</div></div>
+<div id="area"><pre id="can"></pre><div id="hint">搖一搖，或把手機往前傾倒來撒飼料<br>左右傾斜可以決定撒在哪裡</div></div>
+<div id="btns"><button id="bFeed">∴ 撒飼料</button><button id="bKnock">◎ 敲玻璃</button><button id="bWater">≈ 換水</button></div>
+<div id="start"><div>點一下開始</div><small>允許「動作與方向」後就能用搖的餵魚；<br>不允許也可以用下面的按鈕</small></div>
+<script src="lib/peerjs.min.js?v=10"></script>
+<script src="can.js?v=10"></script>
+</body>
+</html>

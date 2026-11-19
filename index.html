@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
+<script>/* v10: ?can=ROOM opens the phone food-can screen instead of the tank (never touches the tank save) */
+if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.search);</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -59,6 +61,18 @@
     top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
     color:#aefcff;padding:14px 14px 10px;font-size:13px;line-height:1.55;display:none;white-space:pre;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 130px);box-sizing:border-box}
   #panel b{color:#46ff8c;font-weight:600}
+  #canPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(300px,88vw);display:none;z-index:20;text-align:center;
+    background:rgba(0,10,12,.96);border:1px solid rgba(57,246,255,.45);border-radius:18px;padding:16px 14px 14px;color:#aefcff;font-size:13px;line-height:1.5;box-sizing:border-box}
+  #canPanel .ct{font-size:16px;font-weight:600;color:#bfffd0;margin-bottom:10px}
+  #canPanel canvas{position:static;display:block;margin:0 auto 10px;width:200px;height:200px;background:#fff;border-radius:6px;image-rendering:pixelated}
+  #canPanel .code b{font-size:20px;letter-spacing:3px;color:#ffe066}
+  #canPanel .lnk{font-size:11px;color:#4f9aa0;word-break:break-all;margin:4px 0 8px}
+  #canPanel #canStatus{margin:6px 0 10px;color:#7ffcff}
+  #canPanel #canStatus.ok{color:#46ff8c}
+  #canPanel .cr{display:flex;gap:8px;justify-content:center}
+  #canPanel .cr button{min-height:40px;padding:6px 14px}
+  #canLive{color:#46ff8c;display:none}
+  #canLive.on{display:inline}
   #panel .dim{color:#4f9aa0}
   #panel .ptog{display:flex;flex-wrap:wrap;gap:6px;white-space:normal;margin-bottom:8px}
   #pAuto,#pSound,#pBreed{font-size:13px;padding:6px 12px;min-width:0;margin:0}
@@ -77,6 +91,7 @@
   <button id="bInfo">♡ 狀態</button>
   <button id="bStyle">▦ 像素</button>
   <button id="bDecor">⌂ 佈置</button>
+  <button id="bCan">⇄ 手機飼料罐<span id="canLive"> ●</span></button>
   <button id="bTilt" class="ui">📱 傾斜：關</button>
 </div>
 <div id="ebar" class="ui">
@@ -93,7 +108,8 @@
 </div>
 <button id="bMenu" class="ui" aria-label="選單">≡</button>
 <div id="panel" class="ui"></div>
+<div id="canPanel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script src="app.js?v=9"></script>
+<script>if (!/[?&]can=/.test(location.search)) document.write('<script src="app.js?v=10"><\/script>');</script>
 </body>
 </html>
