@@ -86,7 +86,7 @@ with sync_playwright() as p:
     ctap(nr, g["sandY"] - 8); pg.click("#eSel button[data-size='0.7']"); pg.wait_for_timeout(100)
     pg.screenshot(path=f"{out}/v3-edit-decor.png")
     # ---- creatures tab ----
-    pg.tap("#eTabC"); pg.wait_for_timeout(150)
+    pg.evaluate("()=>__tank.setTab('life')"); pg.wait_for_timeout(150)   # v13: 生物 is its own ≡ entry
     c0 = pg.evaluate("()=>__tank.fish.length")
     pg.click("#ePalC button[data-sp='turtle']"); pg.wait_for_timeout(200)
     pg.click("#ePalC button[data-sp='minnow']"); pg.wait_for_timeout(200)

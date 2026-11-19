@@ -81,3 +81,16 @@ python3 test_species.py https://wei777942.github.io/ascii-fishtank/ # v4：全�
 - ntfy.sh anonymous limits are per IP: 60 requests burst (+1 per 5 s) and 250 messages/day. On 429 the pages show 「今天的免費傳送次數用完了」.
 - sw.js `fishtank-v12`; ntfy.sh never intercepted. PeerJS removed (lib/peerjs.min.js deleted).
 - Test: `python3 test_v12.py <url> 3` (two real browser contexts through the real relay; no bridge).
+
+## v13 (2026-11-19)
+- Phone feeds spread over the whole surface: no steering → one pellet per equal slice of 8–92 % of the tank width.
+  Root cause of "always far left": the can sent raw `gamma/40` as x whenever any orientation event had fired; a phone held
+  sideways reports gamma ≈ ±80–90° → x = −1 → far left. Now tilt is computed relative to the screen (gravity vector + screen.orientation.angle),
+  with a ~12° dead zone, and only a deliberate sideways *pour* steers; 撒飼料 button and shake always spread.
+- ≡ menu: separate 「∽ 生物」 (picture-only creature picker) and 「⌂ 佈置」 (decor only). ≡ (now visible while editing) or 完成 closes.
+- A brand-new tank (no save) starts with zero creatures; one quiet toast 『點 ≡ →「生物」加魚』. Existing saves untouched.
+- Ten new creatures: 金魚 goldfish, 海馬 seahorse, 鰻魚 eel, 章魚 octopus, 烏賊 squid, 魟魚 ray, 鯊魚 shark, 獅子魚 lionfish, 海星 starfish, 螺 snail
+  (ASCII + pixel sprites, own depth bands / rests / crawling / glass climbing; generic hunger, breeding, save, 100 cap).
+- sw.js `fishtank-v13`, `app.js?v=13`, `can.js?v=13`, `lib/relay.js?v=13`.
+- Tests: `test_v13.py` (uses `mock_ntfy.py` automatically when the box's ntfy.sh allowance is used up); older suites run with `seed_classic.py`
+  (classic 17-creature start) via /tmp/runall.sh.

@@ -1,9 +1,14 @@
 # v12: computer = tank, phone = food can — REAL ntfy.sh relay between two browser contexts (no test bridge, no fakes)
-import sys, json, time, statistics
+import sys, json, time, statistics, os, urllib.request
+import mock_ntfy
 from playwright.sync_api import sync_playwright
 url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8765/"
 RUNS = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+def _quota():
+    try: return json.load(urllib.request.urlopen("https://ntfy.sh/v1/account", timeout=8))["stats"]["messages_remaining"]
+    except Exception: return None
+Q = _quota(); MOCK = os.environ.get("MOCK") == "1" or (Q is not None and Q < 40)   # box allowance used up -> local stand-in
 R = {}; errs = []; relay_hosts = set(); NT = {"post": 0, "ws": 0}
 def hook(pg, tag):
     pg.on("pageerror", lambda e: errs.append(f"{tag}: {e}")); pg.on("console", lambda m: m.type == "error" and errs.append(f"{tag}: {m.text}"))
@@ -21,6 +26,7 @@ def wait(pg, js, sec=20):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path="/usr/bin/google-chrome")
     tctx = b.new_context(viewport={"width": 1280, "height": 800})
+    if MOCK: mock_ntfy.install(tctx)
     tank = tctx.new_page(); hook(tank, "tank")
     t0 = time.time(); tank.goto(url)
     R["tank_relay_open_after_load_s"] = wait(tank, "()=>!!(window.__tank&&__tank.remote.relay&&__tank.remote.relay.open)", 15)
@@ -40,6 +46,8 @@ with sync_playwright() as p:
     tank.screenshot(path="/workspace/fishtank/shots/v12-tank-qr.png")
     link = R["panel"]["link"]
     cctx = b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, has_touch=True, user_agent=UA)
+    if MOCK: mock_ntfy.install(cctx)
+    R["relay"] = "mock_ntfy (box ntfy.sh allowance %s left)" % Q if MOCK else "real ntfy.sh"
     # ---- timing: open the can page -> 已連線 (fresh page each run) ----
     runs = []
     for i in range(RUNS):

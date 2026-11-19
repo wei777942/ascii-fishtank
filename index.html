@@ -55,7 +55,6 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
   #bTilt.on{color:#bfffd0;border-color:#46ff8c;opacity:1}
   #bMenu{position:fixed;top:calc(env(safe-area-inset-top) + 4px);right:calc(env(safe-area-inset-right) + 10px);font-size:18px;line-height:1;width:44px;height:44px;padding:0;min-width:0;opacity:.55}
   body.menu #bMenu{opacity:1;color:#bfffd0;border-color:#46ff8c}
-  body.editing #bMenu{display:none}
   body:not(.menu) #bar,body:not(.menu) #bTilt{display:none!important}
   #panel{position:fixed;left:calc(env(safe-area-inset-left) + 14px);right:calc(env(safe-area-inset-right) + 14px);
     top:calc(env(safe-area-inset-top) + 52px);background:rgba(0,10,12,.86);border:1px solid rgba(57,246,255,.4);border-radius:16px;
@@ -90,6 +89,7 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
   <button id="bWater">≈ 換水</button>
   <button id="bInfo">♡ 狀態</button>
   <button id="bStyle">▦ 像素</button>
+  <button id="bLife">∽ 生物</button>
   <button id="bDecor">⌂ 佈置</button>
   <button id="bCan">⇄ 手機飼料罐<span id="canLive"> ●</span></button>
   <button id="bTilt" class="ui">📱 傾斜：關</button>
@@ -110,6 +110,6 @@ if (/[?&]can=/.test(location.search)) location.replace('can.html' + location.sea
 <div id="panel" class="ui"></div>
 <div id="canPanel" class="ui"></div>
 <div id="toast" class="ui"></div>
-<script>if (!/[?&]can=/.test(location.search)) document.write('<script src="lib/relay.js?v=12"><\/script><script src="app.js?v=12"><\/script>');</script>
+<script>if (!/[?&]can=/.test(location.search)) document.write('<script src="lib/relay.js?v=13"><\/script><script src="app.js?v=13"><\/script>');</script>
 </body>
 </html>

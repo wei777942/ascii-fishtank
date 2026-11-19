@@ -12,7 +12,7 @@
     " '--------' "].join('\n');
   $('can').innerHTML = CAN;
 
-  let relay = null, ready = false, lastFeed = 0, lastKnock = 0, lastWater = 0, tiltX = 0, motionOn = false, pouring = false, ac = null, helloT = 0, helloN = 0, detailT = 0;
+  let relay = null, ready = false, lastFeed = 0, lastKnock = 0, lastWater = 0, tiltX = null, motionOn = false, pouring = false, ac = null, helloT = 0, helloN = 0, detailT = 0;
   const id = (() => { const A = 'abcdefghjkmnpqrstuvwxyz23456789', u = new Uint32Array(8); crypto.getRandomValues(u); return 'c' + [...u].map(v => A[v % A.length]).join(''); })();
   const status = (t, cls) => { const el = $('status'); el.textContent = t; el.className = cls || ''; };
 
@@ -73,7 +73,7 @@
     for (let i = 0; i < 3 + n * 2; i++) {
       const p = document.createElement('span'); p.className = 'pel'; p.textContent = Math.random() < 0.5 ? '∴' : '.';
       p.style.left = (r.left - area.left + r.width * 0.15 + Math.random() * 20) + 'px'; p.style.top = (r.top - area.top + r.height * 0.1) + 'px';
-      p.style.setProperty('--dx', (Math.random() * 60 - 50 + tiltX * 40) + 'px'); p.style.animationDelay = (i * 0.04) + 's';
+      p.style.setProperty('--dx', (Math.random() * 60 - 50 + (tiltX || 0) * 40) + 'px'); p.style.animationDelay = (i * 0.04) + 's';
       $('area').appendChild(p); setTimeout(() => p.remove(), 1400);
     }
   }
@@ -96,9 +96,9 @@
   }
 
   // ---------- actions ----------
-  function feed(n) {
+  function feed(n, x) {                       // x: -1…1 to steer (only from a deliberate sideways pour); null = spread across the whole tank
     const now = performance.now(); if (now - lastFeed < 450) return false; lastFeed = now;
-    if (!send({ t: 'feed', n, x: motionOn ? tiltX : null })) return false;
+    if (!send({ t: 'feed', n, x: typeof x === 'number' ? x : null })) return false;
     pourFx(n); buzz(15 + n * 10); sprinkle(); return true;
   }
   $('bFeed').addEventListener('click', () => feed(3));
@@ -119,11 +119,21 @@
     if (mag > 14) { const n = Math.max(1, Math.min(5, Math.round((mag - 9) / 6))); if (feed(n)) shakeFx(); }
   }
   function onOrient(e) {
-    if (e.gamma != null) { tiltX = Math.max(-1, Math.min(1, e.gamma / 40)); motionOn = true; }
-    if (e.beta != null) pouring = e.beta < -12;      // phone tipped forward past flat, like pouring from a can
+    if (e.beta == null || e.gamma == null) return;
+    motionOn = true;
+    // v13: measure tilt relative to the screen as it is shown (portrait or landscape), from the gravity direction in device
+    // coordinates — raw gamma is ±90° when the phone is held sideways, which sent every pellet to the far left.
+    const r = Math.PI / 180, b = e.beta * r, g = e.gamma * r, dx = Math.cos(b) * Math.sin(g), dy = -Math.sin(b);
+    const a = screenAngle() * r, lat = dx * Math.cos(a) - dy * Math.sin(a), fwd = dx * Math.sin(a) + dy * Math.cos(a);
+    tiltX = Math.abs(lat) < 0.2 ? null : Math.max(-1, Math.min(1, (lat - Math.sign(lat) * 0.2) / 0.45));   // ~12° dead zone
+    pouring = fwd > 0.21;                            // top of the screen tipped down past flat (~12°), like pouring from a can
     $('can').classList.toggle('pour', pouring);
   }
-  setInterval(() => { if (pouring) feed(1); }, 520);
+  function screenAngle() {
+    const o = screen.orientation, a = o && typeof o.angle === 'number' ? o.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+    return ((a % 360) + 360) % 360;
+  }
+  setInterval(() => { if (pouring) feed(1, tiltX); }, 520);
 
   // ---------- start: iOS needs a tap for motion permission and audio ----------
   async function start() {
@@ -136,6 +146,6 @@
     else $('hint').textContent = '動作感測沒有開啟，請用下面的「撒飼料」按鈕';
   }
   $('start').addEventListener('click', start, { once: true });
-  window.__can = { get ready() { return ready; }, feed, get motionOn() { return motionOn; }, room, id, get relay() { return relay; } };
+  window.__can = { get ready() { return ready; }, feed, get motionOn() { return motionOn; }, get tiltX() { return tiltX; }, get pouring() { return pouring; }, room, id, get relay() { return relay; } };
   connect();
 })();

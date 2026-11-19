@@ -21,12 +21,12 @@ with sync_playwright() as p:
     g = pg.evaluate("()=>__tank.geo()")
     # ---- add jellyfish via 生物 tab ----
     pg.evaluate("()=>{const T=__tank;while(T.fish.length>14)T.removeCreature(T.fish[T.fish.length-1])}")
-    pg.tap("#bDecor"); pg.wait_for_timeout(150); pg.tap("#eTabC"); pg.wait_for_timeout(150)
+    pg.evaluate("()=>__tank.enterEdit('life')"); pg.wait_for_timeout(150)   # v13: ≡ → 生物
     n0 = pg.evaluate("()=>__tank.fish.length")
     pg.click("#ePalC button[data-sp='jelly']"); pg.wait_for_timeout(100); pg.click("#ePalC button[data-sp='jelly']")
     R["jelly_added"] = pg.evaluate("()=>__tank.fish.length") - n0
     # ---- add each new plant type ----
-    pg.tap("#eTabD"); pg.wait_for_timeout(150)
+    pg.evaluate("()=>__tank.setTab('decor')"); pg.wait_for_timeout(150)
     pg.evaluate("()=>{__tank.decor.filter(d=>d.type==='weed').slice(3).forEach(d=>d.fx=-1)}")  # keep layout manageable
     placed = {}
     xs = {"kelp": 70, "coral": 150, "grass": 225, "anemone": 305}

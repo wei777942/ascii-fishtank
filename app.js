@@ -45,11 +45,35 @@ const SPECIES = {
 SPECIES.jelly = { label: '水母', kind: 'jelly', strs: [[' _ ', '(_)', ' ) '], [' .-. ', '(   )', " '~' ", ' ) ( ', ' ( ) '],
     ['  .--.  ', ' (    ) ', '  \\~~/  ', '  )|(|  ', '  (|)|  ', '  )|(   ']], cols: ['#f3e2f2', '#ffc6ea', '#ff9fd8'],
   ac: { '|': '#bfe8ff', '~': '#fff0fa', '(': '#e8c8ff', ')': '#e8c8ff' }, alpha: 0.7, size: 1.0, max: 30, acc: 1, wf: 2 };
+// v13: ten more creatures. zone = preferred depth band (0 top … 1 bottom), hop = short moves (px), rest = [chance, min s, max s]
+Object.assign(SPECIES, {
+  goldfish: { label: '金魚', strs: ['}o>', '}}(°>', ['  ,', '}}((°>', "  '"]], cols: ['#ffe0b0', '#ffb347', '#ff8c1a'],
+              ac: { '}': '#fff0d0', ',': '#fff0d0', "'": '#fff0d0' }, size: 1.0, max: 46, acc: 1.2, wf: 6, fin: 1.8, zone: [0, 0.8], rest: [0.25, 0.5, 1.5] },
+  seahorse: { label: '海馬', strs: [['o>', ' )', " '"], [' o>', '(|', ' )', " '"], [' ,o>', ' (| ', '  ) ', ' (_ ', "  ' "]], cols: ['#fff2b0', '#ffd75a', '#f5b820'],
+              ac: { '|': '#ff9a3c', ',': '#ff9a3c' }, size: 0.95, max: 14, acc: 0.5, wf: 2, fin: 0.3, bob: 1.1, maxAng: 0.06, zone: [0.2, 0.85], hop: 70, rest: [0.7, 2, 6] },
+  eel:      { label: '鰻魚', strs: ['~~~o>', '~~~~~~o>', '~~~~~~~~~=O>'], cols: ['#c8f0d0', '#8fd8a0', '#5fbf78'],
+              ac: { '=': '#e8ffd0' }, sy: 0.9, size: 0.9, max: 38, acc: 0.9, wf: 5, fin: 3, maxAng: 0.25, zone: [0.6, 1], rest: [0.2, 1, 3] },
+  octopus:  { label: '章魚', kind: 'jelly', deep: true, strs: [[' o ', '/|\\'], [' .-. ', '( ° )', '/|||\\'], [' .--. ', '( °° )', ' )||( ', '/ || \\']],
+              cols: ['#ffc8b8', '#ff8f7a', '#e8604a'], ac: { '°': '#ffffff', '|': '#ffb0a0' }, size: 1.0, max: 40, acc: 1, wf: 2.5 },
+  squid:    { label: '烏賊', strs: ['=<°>', '~=<(°>', ['   _', '~~=<((°>', "   '"]], cols: ['#f0e0ff', '#d0b0ff', '#b088ff'],
+              ac: { '~': '#ffd0f0', '=': '#ffd0f0' }, size: 0.9, max: 75, acc: 2.2, wf: 8, fin: 0.6, burst: true, zone: [0.1, 0.8] },
+  ray:      { label: '魟魚', strs: ['~<o>', [' .-.', '~-<(o)>', " '-'"], ['  .-^-.', '~--<( o )>', "  '-v-'"]], cols: ['#d8e8f0', '#a8c8d8', '#7aa8c0'],
+              ac: { '~': '#e0f0ff', '-': '#c0d8e8' }, sy: 0.8, size: 1.0, max: 30, acc: 0.6, wf: 2.5, fin: 1.6, maxAng: 0.12, zone: [0.65, 1], rest: [0.2, 1, 3] },
+  shark:    { label: '鯊魚', strs: ['>-^>', ['   /', '>=-^-°>'], ['     /|', '>=<=====°>']], cols: ['#dfe6ee', '#b8c4d0', '#90a0b4'],
+              ac: { '/': '#a0b0c4', '|': '#a0b0c4' }, size: 1.0, max: 80, acc: 1.0, wf: 5, fin: 1, maxAng: 0.2, zone: [0.15, 0.75], rest: [0, 0, 0] },
+  lionfish: { label: '獅子魚', strs: ['}>°>', ['/|\\', '}}(°>', '\\|/'], [' /|||\\', '}}((((°>', ' \\|||/']], cols: ['#ffd8c8', '#ff8a70', '#e8502f'],
+              ac: { '|': '#fff2e8', '/': '#fff2e8', '\\': '#fff2e8', '}': '#ffc0a8' }, size: 1.0, max: 24, acc: 0.7, wf: 3, fin: 0.5, zone: [0.3, 0.9], hop: 90, rest: [0.6, 1.5, 4] },
+  starfish: { label: '海星', kind: 'crawl', fixed: true, glass: true, strs: ['*', [' | ', '-*-', '/ \\'], ['  |  ', '-(*)-', ' / \\ ']], cols: ['#ffd0a8', '#ff9a6a', '#ff6a3a'],
+              ac: { '*': '#ffe0a0', '(': '#ffb080', ')': '#ffb080' }, size: 0.9, max: 5, acc: 1, wf: 1.5 },
+  snail:    { label: '螺', kind: 'crawl', glass: true, strs: ['@_', "(@)_'", ['  _', ' (@)__"', "'-----'"]], cols: ['#f0e8c8', '#d8c890', '#b8a060'],
+              ac: { '@': '#c89060', '(': '#c89060', ')': '#c89060', '"': '#fff0d0', "'": '#a0a080' }, size: 0.85, max: 7, acc: 1, wf: 1.2 },
+});
 const kindOf = sp => SPECIES[sp].kind || 'swim';
-const isBottom = f => { const k = kindOf(f.sp); return k === 'crab' || k === 'shrimp'; };
+const isBottom = f => { const k = kindOf(f.sp); return k === 'crab' || k === 'shrimp' || k === 'crawl'; };
 const strLen = str => Array.isArray(str) ? Math.max(...str.map(l => l.length)) : str.length;
 const MAX_CREATURES = 100, SCHOOL_SIZE = 6;   // v9: cap raised 25 -> 100
-const DEFAULT_NAME = { jelly: '水水', clown: '小丑', neon: '霓虹', puffer: '河豚', shrimp: '小蝦', crab: '阿蟹', minnow: '群魚', turtle: '龜龜', angel: '小仙', betta: '阿鬥' };
+const DEFAULT_NAME = { jelly: '水水', clown: '小丑', neon: '霓虹', puffer: '河豚', shrimp: '小蝦', crab: '阿蟹', minnow: '群魚', turtle: '龜龜', angel: '小仙', betta: '阿鬥',
+  goldfish: '金金', seahorse: '馬馬', eel: '小鰻', octopus: '章章', squid: '小賊', ray: '魟魟', shark: '鯊鯊', lionfish: '獅獅', starfish: '星星', snail: '螺螺' };
 const STARTERS = [['shrimp', '小蝦'], ['crab', '阿蟹'], ['turtle', '龜龜'], ['angel', '小仙'], ['betta', '阿鬥']];
 function starterList() {
   const out = STARTERS.map(([sp, name]) => ({ sp, name, hunger: 80, mood: 75, sick: false, growth: 0.08 }));
@@ -71,7 +95,6 @@ function look(f) {
   return { st, str: puffed ? sp.puffs[st] : sp.strs[st], scale: sp.size * (0.72 + 0.5 * (f.growth || 0)) * (sp.puffs ? 1 + f.puff * 0.6 : 1),
     color: f.sick ? '#7fa58a' : stageColor(f.sp, f.growth || 0) };
 }
-const ROSTER = [['clown', '阿青'], ['clown', '小藍'], ['neon', '綠豆'], ['neon', '薄荷'], ['neon', '芽芽'], ['puffer', '泡泡']];
 const ROCKS = [          // ASCII rocks, bottom-aligned on the sand
   [' ^ ', '(_)'],
   ['  /\\  ', ' /  \\_', '(_____)'],
@@ -110,6 +133,23 @@ function shrink(rows, k) {
 const SPR = { pufferBig: ['...s.s.s...', '..aaaaaaa..', '.saaaaaaas.', 'aaaaaaaaaea', 'aaaaaaaaaaa', '.saaaaaaas.', '..aaaaaaa..', '...s.s.s...'] };
 BABY_PX.jelly = ['.aa.', 'abba', 's.s.', '.s.s'];
 ADULT_PX.jelly = ['..aaaa..', '.aaaaaa.', 'aabaabaa', 'aaaaaaaa', '.s.s.s.s', 's.s.s.s.', '.s.s.s..', 's...s...'];
+Object.assign(BABY_PX, {
+  goldfish: ['b.aa.', 'bbaae', 'b.aa.'], seahorse: ['.ae', '.a.', '..a', '.a.'], eel: ['aaaaae'], octopus: ['.aa.', 'aeea', 's.s.'],
+  squid: ['s.aae'], ray: ['.aa.', 'aaae', '.aa.'], shark: ['a..aaa.', 'aaaaaae'], lionfish: ['s.s.', 'aaae', 's.s.'],
+  starfish: ['.a.', 'aba', 'a.a'], snail: ['bb.e', 'aaaa'],
+});
+Object.assign(ADULT_PX, {
+  goldfish: ['bb...aaaa...', 'bbb.aaaaaa..', '.bbbaaaaaaea', 'bbb.aaaaaa..', 'bb...aaaa...'],
+  seahorse: ['..aae.', '.aaaaa', '..aab.', '..aab.', '...ab.', '..aa..', '..a...', '..aa..'],
+  eel: ['b.......aa...', '.aa...aaaaaae', '...aaa....aa.'],
+  octopus: ['..aaaa..', '.aaaaaa.', '.aeaaea.', '..aaaa..', '.s.ss.s.', 's..ss..s', 's.s..s.s'],
+  squid: ['s.....aaa..', 'ss.aaaaaaaa', 'sssaaaaaaae', 'ss.aaaaaaaa', 's.....aaa..'],
+  ray: ['.....aa.....', '...aaaaaa...', 'b.aaaaaaaaea', '.bbaaaaaaaa.', '...aaaaaa...', '.....aa.....'],
+  shark: ['......a......', '.....aa......', 'a...aaaaaaa..', 'aa.aaaaaaaaae', 'a...bbbbbbb..'],
+  lionfish: ['.s.s.s.s..', '..s.s.s...', 'bbaaaaaaa.', 'bbaabaabae', '..s.s.s...', '.s.s.s.s..'],
+  starfish: ['...a...', '...a...', 'aaabaaa', '.aaaaa.', '.aa.aa.', 'a.....a'],
+  snail: ['..bbb...e.', '.bbbbb..a.', '.bbabb.aa.', 'aaaaaaaaaa'],
+});
 for (const k in ADULT_PX) SPR[k] = [BABY_PX[k], shrink(ADULT_PX[k], 0.75), ADULT_PX[k]];   // [幼魚, 少年, 成魚]
 
 // ---------- state ----------
@@ -125,7 +165,7 @@ let frameAvg = 16, slowFor = 0;
 
 function freshState() {
   return { v: 3, decor: null, t: Date.now(), dirt: 0.05, style: 'ascii', seen: 0, motion: false, starter3: true,
-    fish: ROSTER.map(([sp, name], i) => ({ sp, name, hunger: 80, mood: 75, sick: false, growth: 0.06 + (i % 3) * 0.05 })).concat(starterList()) };
+    fish: [] };                  // v13: a brand-new tank starts empty (decor and bubbles only); add creatures from ≡ → 生物
 }
 function load() {
   let s = null;
@@ -324,7 +364,7 @@ function makeFish(p, i, pour) {
   return f;
 }
 const halfLen = f => { const L = look(f); return strLen(L.str) * charW * L.scale / 2; };
-const mouthX = f => f.sp === 'crab' || f.sp === 'jelly' ? f.x : f.x + Math.sign(f.flip || 1) * halfLen(f) * 0.9;
+const mouthX = f => SPECIES[f.sp].fixed || kindOf(f.sp) === 'crab' || kindOf(f.sp) === 'jelly' ? f.x : f.x + Math.sign(f.flip || 1) * halfLen(f) * 0.9;
 const schoolKey = f => kindOf(f.sp) === 'school' ? f.sp + ':' + (f.grp || 0) : null;
 const floorY = f => sandY - fs * 0.34 * look(f).scale;
 function bottomFood(f) {
@@ -343,6 +383,11 @@ function pickWander(f) {
   else if (f.sp === 'betta') { f.tx = rnd(b.l, b.r); f.ty = rnd(b.t, b.t + (b.b - b.t) * 0.55); f.pause = Math.random() < 0.3 ? rnd(1, 2.5) : 0; }
   else if (f.sp === 'angel') { f.tx = clamp(f.x + rnd(-120, 120), b.l, b.r); f.ty = rnd(b.t + 20, b.b - 20); }
   else if (f.sp === 'turtle') { f.tx = rnd(b.l, b.r); f.ty = rnd(b.t + (b.b - b.t) * 0.3, b.b); f.pause = Math.random() < 0.4 ? rnd(2, 5) : 0; }
+  else if (SPECIES[f.sp].zone) {             // v13: per-species depth band, short hops, rests
+    const sp = SPECIES[f.sp], z = sp.zone, h = b.b - b.t, r = sp.rest || [0.3, 1, 2];
+    f.tx = sp.hop ? clamp(f.x + rnd(-sp.hop, sp.hop), b.l, b.r) : rnd(b.l, b.r); f.ty = rnd(b.t + h * z[0], b.t + h * z[1]);
+    f.pause = Math.random() < r[0] ? rnd(r[1], r[2]) : 0;
+  }
   else { f.tx = rnd(b.l, b.r); f.ty = rnd(b.t + 10, b.b - (b.b - b.t) * 0.15); }
   f.wt = rnd(3, 8);
 }
@@ -377,6 +422,7 @@ function updateBottom(f, dt) {
         if (Math.abs(f.tx - f.x) < 8 || f.wt <= 0) {
           f.tx = rnd(fs, W - fs); f.wt = rnd(4, 9); f.pause = Math.random() < 0.6 ? rnd(1, 4) : 0;
           if (f.sp === 'shrimp' && Math.random() < 0.3) toGlass(f.x < W / 2 ? -1 : 1);
+          else if (sp.glass && Math.random() < 0.3) f.tx = f.x < W / 2 ? 0 : W;   // v13: slow crawlers walk to the glass first, then climb
         }
       }
       if (f.sp === 'shrimp' && !air && f.mode === 'walk' && Math.random() < dt * 0.25) { f.vy = -rnd(55, 100); f.vx += f.face * 30; }   // hop
@@ -390,15 +436,16 @@ function updateBottom(f, dt) {
     f.x += f.vx * dt; f.y += f.vy * dt;
     if (f.y >= fy) { f.y = fy; if (f.vy > 0) f.vy = 0; }
     const m = fs * 0.7;
-    if (f.x < m) { f.x = m; f.vx = Math.abs(f.vx) * 0.3; if (f.sp === 'shrimp' && !f.enter && f.startle <= 0 && Math.random() < 0.5) toGlass(-1); }
-    if (f.x > W - m) { f.x = W - m; f.vx = -Math.abs(f.vx) * 0.3; if (f.sp === 'shrimp' && !f.enter && f.startle <= 0 && Math.random() < 0.5) toGlass(1); }
+    if (f.x < m) { f.x = m; f.vx = Math.abs(f.vx) * 0.3; if ((f.sp === 'shrimp' || sp.glass) && !f.enter && f.startle <= 0 && Math.random() < 0.5) toGlass(-1); }
+    if (f.x > W - m) { f.x = W - m; f.vx = -Math.abs(f.vx) * 0.3; if ((f.sp === 'shrimp' || sp.glass) && !f.enter && f.startle <= 0 && Math.random() < 0.5) toGlass(1); }
   } else f.y = clamp(f.y + f.vy * dt, bounds.t, fy);
   if (f.mode !== 'glass') for (const o of fish) if (o !== f && isBottom(o) && o.mode !== 'glass') {   // don't pile up
     const dx = f.x - o.x, gap = (halfLen(f) + halfLen(o)) * 0.85;
     if (Math.abs(dx) < gap && Math.abs(f.y - o.y) < fs) f.x = clamp(f.x + Math.sign(dx || f.ph - o.ph) * Math.min(45 * dt, gap - Math.abs(dx)), fs * 0.7, W - fs * 0.7);
   }
   let targAng = 0;
-  if (f.sp === 'crab') { f.face = 1; f.flip = 1; }
+  if (f.sp === 'crab' || (sp.fixed && f.mode !== 'glass')) { f.face = 1; f.flip = 1; }
+  else if (sp.fixed) { targAng = -Math.PI / 2; f.face = 1; f.flip = 1; }
   else {
     if (f.mode === 'glass') { f.face = f.wallSide; targAng = -Math.PI / 2; }
     else if (f.startle <= 0) { if (f.vx > 5) f.face = 1; else if (f.vx < -5) f.face = -1; }
@@ -411,10 +458,10 @@ function updateBottom(f, dt) {
 function updateJelly(f, dt) {   // pulse up, drift slowly down, steer weakly toward food
   const sp = SPECIES[f.sp], hf = f.sick ? 0.4 : f.hunger < 30 ? 0.5 + 0.5 * f.hunger / 30 : 1;
   f.pulseT = (f.pulseT == null ? rnd(0, 2) : f.pulseT) - dt;
-  const low = bounds.b - fs * 2, high = surfaceY + fs * 1.6;
+  const low = bounds.b - fs * 2, high = sp.deep ? (bounds.t + bounds.b) / 2 : surfaceY + fs * 1.6;   // v13: octopus keeps to the lower half
   if (f.enter) { if (f.y > surfaceY + fs * 3) f.enter = false; f.vy = Math.max(f.vy, 30); }
-  else if (((f.pulseT <= 0 && (f.y > (f.jy || (f.jy = rnd(surfaceY + 90, low))) || Math.random() < 0.004)) || f.y > low) && !f.held) {
-    if (Math.random() < 0.35) f.jy = rnd(surfaceY + 90, low);
+  else if (((f.pulseT <= 0 && (f.y > (f.jy || (f.jy = rnd(sp.deep ? high : surfaceY + 90, low))) || Math.random() < 0.004)) || f.y > low) && !f.held) {
+    if (Math.random() < 0.35) f.jy = rnd(sp.deep ? high : surfaceY + 90, low);
     f.pulseT = rnd(1.8, 3.2) / hf; f.pulse = 1;
     f.vy = -rnd(40, 65) * hf * (f.y < high + 40 ? 0.3 : 1);
   }
@@ -546,8 +593,9 @@ function knock(x, y) {
     if (f.sp === 'crab') { f.vy = 0; f.vx = Math.sign(f.x - x || 1) * sp.max * (3 + 3 * s); f.startle = 1 + s; }
     else if (f.sp === 'shrimp') {          // tail flick: shoots backwards without turning
       f.mode = 'walk'; f.vx = -f.face * sp.max * (4 + 4 * s); f.vy = -rnd(70, 130) * (0.5 + s); f.startle = 0.9;
-    } else if (f.sp === 'turtle') { f.surfacing = 0; f.vx *= 0.6; f.vy *= 0.6; }
-    else if (f.sp === 'jelly') { f.vx = ox * 50 * (0.4 + s); f.vy = oy * 35 * (0.4 + s); f.startle = 1.2; }
+    } else if (sp.kind === 'crawl') { f.vx = Math.sign(ox || 1) * sp.max * 2; f.vy = 0; f.startle = 0.8 + s; }   // v13: crawlers just flinch
+    else if (f.sp === 'turtle') { f.surfacing = 0; f.vx *= 0.6; f.vy *= 0.6; }
+    else if (sp.kind === 'jelly') { f.vx = ox * 50 * (0.4 + s); f.vy = oy * 35 * (0.4 + s); f.startle = 1.2; }
   }
   if (navigator.vibrate) try { navigator.vibrate(12); } catch (e) {}
 }
@@ -790,7 +838,7 @@ function menuIdleCheck() {
   if (Date.now() - menuT > 8000) setMenu(false);
 }
 document.addEventListener('pointerdown', () => { menuT = Date.now(); }, { capture: true, passive: true });
-// ---------- v12: phone food can — tiny messages relayed by ntfy.sh (HTTPS + WebSocket, no account) + client-side QR ----------
+// ---------- v12/v13: phone food can — tiny messages relayed by ntfy.sh (HTTPS + WebSocket, no account) + client-side QR ----------
 // v10/v11 used WebRTC (PeerJS); on real phones the data channel often never opened (NAT), so the relay is now the only transport.
 const TOPIC_PREFIX = 'fishtank-', ROOM_LEN = 20;
 const remote = { relay: null, room: null, status: 'off', loading: null, cans: new Map(), lastFeed: 0, lastKnock: 0, everConnected: false, stateT: 0, lastState: 0 };
@@ -849,7 +897,7 @@ function startRemote() {
   if (remote.relay) return Promise.resolve();
   if (remote.loading) return remote.loading;
   remoteStatus('connecting');
-  remote.loading = Promise.all([window.Relay ? 0 : loadScript('lib/relay.js?v=12'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=12')])
+  remote.loading = Promise.all([window.Relay ? 0 : loadScript('lib/relay.js?v=13'), window.qrcode ? 0 : loadScript('lib/qrcode.js?v=13')])
     .then(() => { remote.loading = null; drawQR(); openRelay(); })
     .catch(() => { remote.loading = null; remoteStatus('error'); });
   return remote.loading;
@@ -899,7 +947,9 @@ function onRemote(d) {
   if (d.t === 'feed') {
     if (now - remote.lastFeed < 250) return; remote.lastFeed = now;
     const n = clamp(Math.round(+d.n || 1), 1, 6), cx = typeof d.x === 'number' && isFinite(d.x) ? W * (0.5 + clamp(d.x, -1, 1) * 0.4) : null;
-    for (let i = 0; i < n; i++) dropFood(cx != null ? cx + rnd(-W * 0.06, W * 0.06) : rnd(W * 0.12, W * 0.88), 1);
+    // v13: no steering → spread evenly over the whole surface (one pellet per equal slice of 8%–92% of the width, in random order)
+    const sl = [...Array(n).keys()].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < n; i++) dropFood(cx != null ? cx + rnd(-W * 0.06, W * 0.06) : W * (0.08 + 0.84 * (sl[i] + rnd(0.1, 0.9)) / n), 1);
   } else if (d.t === 'knock') {
     if (now - remote.lastKnock < 400) return; remote.lastKnock = now;
     knock(rnd(W * 0.15, W * 0.85), rnd(surfaceY + 60, sandY - 60));
@@ -920,6 +970,7 @@ function preloadRemote() {
 (window.requestIdleCallback ? cb => requestIdleCallback(cb, { timeout: 2500 }) : cb => setTimeout(cb, 1200))(() => setTimeout(preloadRemote, 300));
 btn('bCan', () => { if (canPanelOpen()) closeCanPanel(); else openCanPanel(); });   // tap again to close
 btn('bMenu', () => {                       // ≡ closes the dropdown and the 狀態 panel together
+  if (edit) { exitEdit(); setMenu(false); return; }   // v13: ≡ also closes 生物 / 佈置
   const open = document.body.classList.contains('menu');
   if (open || canPanelOpen()) { $('panel').style.display = 'none'; closeCanPanel(); }
   setMenu(!open);
@@ -1166,11 +1217,13 @@ function setTab(tab) {
   $('ePalD').style.display = tab === 'decor' ? 'flex' : 'none';
   $('ePalC').style.display = tab === 'life' ? 'flex' : 'none';
   $('eTabD').classList.toggle('sel', tab === 'decor'); $('eTabC').classList.toggle('sel', tab === 'life');
+  $('eTabD').style.display = tab === 'decor' ? '' : 'none'; $('eTabC').style.display = tab === 'life' ? '' : 'none';   // v13: 生物 and 佈置 are separate
   renderSel();
 }
-function enterEdit() {
+function enterEdit(tab) {
+  tab = tab === 'life' ? 'life' : 'decor';
   edit = { hintY: () => Math.max($('ebar').getBoundingClientRect().bottom + fs * 1.1, placeTop() - fs * 2.6), tab: 'decor', type: 'weed', rv: -1, drag: null, tap: null, tapF: null, hot: false, sel: null, selF: null, pts: new Map(), pinch: null };
-  setEditType('weed'); setTab('decor'); $('panel').style.display = 'none';
+  setEditType('weed'); setTab(tab); $('panel').style.display = 'none'; closeCanPanel(); setMenu(false);
   document.body.classList.add('editing'); $('bar').style.display = 'none'; $('ebar').style.display = 'flex'; $('bTilt').style.display = 'none';
 }
 function exitEdit() { for (const f of fish) f.held = false; edit = null; save(); document.body.classList.remove('editing'); $('eSel').style.display = 'none'; $('ebar').style.display = 'none'; $('bar').style.display = 'flex'; $('bTilt').style.display = tiltAvailable ? 'block' : 'none'; toast('佈置好了', 1.4); }
@@ -1183,7 +1236,8 @@ function speciesArt(k) {
   return lines.map(l => [...l].map(c => c === ' ' ? ' ' : `<span style="color:${(sp.ac && sp.ac[c]) || col}">${escH(c)}</span>`).join('')).join('\n');
 }
 $('ePalC').innerHTML = Object.keys(SPECIES).map(k => `<button data-sp="${k}" class="art" aria-label="add"><pre>${speciesArt(k)}</pre></button>`).join('');
-btn('bDecor', enterEdit);
+btn('bDecor', () => enterEdit('decor'));
+btn('bLife', () => enterEdit('life'));
 $('ePalD').insertAdjacentHTML('afterbegin', '<button id="eWeed" data-type="weed">} 水草</button><button id="eRock" data-type="rock">(_) 石頭</button>' +
   Object.keys(PLANTS).map(k => `<button data-type="${k}">${PLANTS[k].icon} ${PLANTS[k].label}</button>`).join(''));
 $('ePalD').addEventListener('click', e => { const b = e.target.closest('button[data-type]'); if (b && edit) { e.stopPropagation(); setEditType(b.dataset.type); } });
@@ -1396,7 +1450,7 @@ function drawFishA(f) {
   if (f.hunger < 30 && !f.sick) ctx.globalAlpha = 0.75;
   if (sp.alpha) ctx.globalAlpha *= sp.alpha;
   const lines = Array.isArray(str) ? str : [str], mid = (lines.length - 1) / 2;
-  const n = strLen(str), w = n * charW, crab = f.sp === 'crab';
+  const n = strLen(str), w = n * charW, crab = f.sp === 'crab' || !!sp.fixed;
   const amp = fs * 0.11 * (sp.fin || 1) * (0.35 + Math.min(1.2, Math.hypot(f.vx, f.vy) / sp.max));
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li], ly = (li - mid) * fs * 0.78;
@@ -1460,7 +1514,9 @@ function drawRipples() {
 
 // ---------- render: pixel art ----------
 const PCOL = { jelly: { b: '#ffffff', s: '#bfe8ff' }, clown: { b: '#ffffff' }, neon: { b: '#ff3d6e' }, puffer: { b: '#c07a10', s: '#ff9a3c' }, shrimp: { b: '#ffd6de', s: '#ff8fa8' }, crab: { b: '#ffd0a0' },
-  minnow: { b: '#7fd0ff' }, turtle: { b: '#d8b060' }, angel: { b: '#ffe066' }, betta: { b: '#a070ff' } };
+  minnow: { b: '#7fd0ff' }, turtle: { b: '#d8b060' }, angel: { b: '#ffe066' }, betta: { b: '#a070ff' },
+  goldfish: { b: '#fff0d0' }, seahorse: { b: '#ff9a3c' }, eel: { b: '#e8ffd0' }, octopus: { s: '#ffb0a0' }, squid: { s: '#ffd0f0' }, ray: { b: '#e0f0ff' },
+  shark: { b: '#ffffff' }, lionfish: { b: '#ffc0a8', s: '#fff2e8' }, starfish: { b: '#ffe0a0' }, snail: { b: '#c89060' } };
 function sprite(rows, cx, cy, mirror, cols, thin, k = 1) {
   const h = rows.length, w = rows[0].length;
   const ox = Math.round(cx - w * k / 2), oy = Math.round(cy - h * k / 2);
@@ -1547,7 +1603,7 @@ function drawIntroText() {
   ctx.fillText('電子魚缸', W / 2, H * 0.42);
   glow('#46ff8c', 6);
   ctx.font = `${fs * 0.75}px -apple-system, "PingFang TC", sans-serif`;
-  ctx.fillText(S.seen ? '點一下敲玻璃・長按餵食' : '倒魚入缸… 點一下敲玻璃・長按餵食', W / 2, H * 0.42 + fs * 1.8);
+  ctx.fillText(S.seen || !fish.length ? '點一下敲玻璃・長按餵食' : '倒魚入缸… 點一下敲玻璃・長按餵食', W / 2, H * 0.42 + fs * 1.8);
   ctx.restore();
 }
 
@@ -1607,8 +1663,9 @@ function boot() {
   tiltLabel();
   lastWall = Date.now();
   if (away > 3600) setTimeout(() => offlineToast(away), 3200);
-  else if (S.newFriends) setTimeout(() => toast('新朋友來了：蝦子、螃蟹、群魚、烏龜、神仙魚、鬥魚（佈置 → 生物 可增減）', 5), 3000);
+  else if (S.newFriends) setTimeout(() => toast('新朋友來了：蝦子、螃蟹、群魚、烏龜、神仙魚、鬥魚（≡ → 生物 可增減）', 5), 3000);
   delete S.newFriends;
+  if (!fish.length) setTimeout(() => { if (!fish.length && !edit) toast('點 ≡ →「生物」加魚', 4); }, (INTRO + 1.2) * 1000);   // v13: empty tank — one quiet hint
   S.seen = (S.seen || 0) + 1;
   save();
   requestAnimationFrame(t0 => { lastFrame = t0; requestAnimationFrame(frame); });
