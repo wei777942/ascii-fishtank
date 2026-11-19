@@ -1,6 +1,6 @@
 # v13: a brand-new tank starts empty. The older suites were written for the classic 17-creature starter tank,
 # so they run with this seed (only when the page has no save yet — explicit saves in a test still win).
-import json
+import json, os
 from playwright.sync_api import Browser
 ROSTER = [('clown', '阿青'), ('clown', '小藍'), ('neon', '綠豆'), ('neon', '薄荷'), ('neon', '芽芽'), ('puffer', '泡泡')]
 FISH = [dict(sp=sp, name=n, hunger=80, mood=75, sick=False, growth=0.06 + (i % 3) * 0.05) for i, (sp, n) in enumerate(ROSTER)]
@@ -10,7 +10,10 @@ SEED = "(()=>{try{if(location.pathname.endsWith('can.html'))return;if(!localStor
     dict(v=3, decor=None, dirt=0.05, style='ascii', seen=0, motion=False, starter3=True, fish=FISH), ensure_ascii=False)
 _orig = Browser.new_context
 def _nc(self, *a, **k):
-    c = _orig(self, *a, **k); c.add_init_script(SEED); return c
+    c = _orig(self, *a, **k); c.add_init_script(SEED)
+    if os.environ.get('MOCK') == '1':
+        import mock_ntfy; mock_ntfy.install(c)   # keep test page loads off the box's ntfy.sh allowance
+    return c
 Browser.new_context = _nc
 _orig_np = Browser.new_page
 def _np(self, *a, **k):
